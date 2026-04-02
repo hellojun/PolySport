@@ -4,30 +4,26 @@ Polymarket Gamma API 数据拉取服务
 """
 
 import re
-import time as _time
 import requests
-from datetime import datetime as dt
 from typing import List, Optional, Tuple, Dict
-from zoneinfo import ZoneInfo
-
-from nba_api.stats.static import teams as static_teams
 
 from ...config import Config
 from ...utils.logger import get_logger
 
 logger = get_logger('mirofish.data_fetcher.polymarket')
 
-# 缩写 → 全名 映射，启动时从 nba_api 加载一次
+# 缩写 → 全名 映射（硬编码，不走网络）
 _ABBR_TO_TEAM: Dict[str, dict] = {}
 
 
 def _ensure_team_map():
     global _ABBR_TO_TEAM
     if not _ABBR_TO_TEAM:
-        for t in static_teams.get_teams():
-            _ABBR_TO_TEAM[t['abbreviation']] = {
-                'name': t['full_name'],
-                'abbreviation': t['abbreviation'],
+        from .nba_stats import _TEAM_FULLNAME
+        for abbr, full_name in _TEAM_FULLNAME.items():
+            _ABBR_TO_TEAM[abbr] = {
+                'name': full_name,
+                'abbreviation': abbr,
             }
 
 
@@ -151,48 +147,35 @@ class PolymarketService:
 
     def _fetch_nba_game_times(self, game_date: str) -> Dict[str, str]:
         """
-        从 NBA ScoreboardV2 获取指定日期所有比赛的开赛时间。
-        返回 {"PHX_ORL": "2026-03-25T19:00:00-04:00", ...} (ISO 带时区)
+        从 CDN schedule 获取指定日期所有比赛的开赛时间。
+        返回 {"PHX_ORL": "2026-03-25T19:00:00Z", ...} (ISO UTC)
         """
         if not Config.NBA_API_ENABLED:
             return {}
 
         try:
-            from nba_api.stats.endpoints import scoreboardv2
-
-            _time.sleep(Config.NBA_API_DELAY)
-            board = scoreboardv2.ScoreboardV2(
-                game_date=game_date,
-                timeout=Config.NBA_API_TIMEOUT,
-                proxy=Config.NBA_API_PROXY or None,
-            )
-
-            id_to_abbr = {t['id']: t['abbreviation'] for t in static_teams.get_teams()}
-            et_tz = ZoneInfo('America/New_York')
+            from .nba_stats import NBAStatsService
+            svc = NBAStatsService()
+            schedule = svc._fetch_schedule()
+            if not schedule:
+                return {}
 
             result = {}
-            for g in board.get_normalized_dict().get('GameHeader', []):
-                away_abbr = id_to_abbr.get(g.get('VISITOR_TEAM_ID'), '')
-                home_abbr = id_to_abbr.get(g.get('HOME_TEAM_ID'), '')
-                status_text = (g.get('GAME_STATUS_TEXT') or '').strip()
+            game_dates = schedule.get('leagueSchedule', {}).get('gameDates', [])
+            for gd in game_dates:
+                for g in gd.get('games', []):
+                    g_date = (g.get('gameDateEst', '') or '')[:10]
+                    if g_date != game_date:
+                        continue
+                    away_abbr = g.get('awayTeam', {}).get('teamTricode', '')
+                    home_abbr = g.get('homeTeam', {}).get('teamTricode', '')
+                    if not away_abbr or not home_abbr:
+                        continue
+                    game_time = g.get('gameDateTimeUTC', '')
+                    if game_time:
+                        result[f"{away_abbr}_{home_abbr}"] = game_time
 
-                if not away_abbr or not home_abbr:
-                    continue
-
-                # 解析 "7:00 pm ET" 格式
-                m = re.match(r'(\d{1,2}):(\d{2})\s*(am|pm)\s*ET', status_text, re.IGNORECASE)
-                if m:
-                    h, mi = int(m.group(1)), int(m.group(2))
-                    if m.group(3).lower() == 'pm' and h != 12:
-                        h += 12
-                    elif m.group(3).lower() == 'am' and h == 12:
-                        h = 0
-                    game_dt = dt.strptime(game_date, '%Y-%m-%d').replace(
-                        hour=h, minute=mi, tzinfo=et_tz
-                    )
-                    result[f"{away_abbr}_{home_abbr}"] = game_dt.isoformat()
-
-            logger.info(f"NBA ScoreboardV2: 日期 {game_date} 获取到 {len(result)} 场比赛时间")
+            logger.info(f"NBA CDN schedule: 日期 {game_date} 获取到 {len(result)} 场比赛时间")
             return result
         except Exception as e:
             logger.warning(f"获取NBA赛程时间失败: {e}")

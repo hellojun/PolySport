@@ -77,6 +77,12 @@ class Config:
     NBA_API_SEASON = os.environ.get('NBA_API_SEASON', '')  # 空=自动推断当前赛季
     NBA_API_PROXY = os.environ.get('NBA_API_PROXY', '')  # e.g. http://user:pass@us-proxy:port
 
+    # NBA CDN 配置 (cdn.nba.com — 替代 stats.nba.com)
+    NBA_CDN_SCHEDULE_TTL = int(os.environ.get('NBA_CDN_SCHEDULE_TTL', '3600'))    # 赛程 Redis 缓存 1h
+    NBA_CDN_BOXSCORE_TTL = int(os.environ.get('NBA_CDN_BOXSCORE_TTL', '1800'))   # boxscore 缓存 30min
+    NBA_CDN_BOXSCORE_COUNT = int(os.environ.get('NBA_CDN_BOXSCORE_COUNT', '7'))  # 每队取最近 N 场
+    NBA_CDN_REQUEST_TIMEOUT = int(os.environ.get('NBA_CDN_REQUEST_TIMEOUT', '15'))
+
     # 聪明钱配置
     SMART_MONEY_ENABLED = os.environ.get('SMART_MONEY_ENABLED', 'true').lower() == 'true'
     SMART_MONEY_TIMEOUT = int(os.environ.get('SMART_MONEY_TIMEOUT', '15'))
