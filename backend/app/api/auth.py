@@ -21,10 +21,13 @@ from flask_jwt_extended import (
     get_jwt,
 )
 
+from decimal import Decimal
+
 from . import auth_bp
 from ..config import Config
 from ..extensions import db
 from ..models.user import User
+from ..models.deposit import TokenTransaction
 from ..services.email_service import send_verification_code
 from ..utils.redis_client import get_redis
 from ..utils.logger import get_logger
@@ -150,10 +153,21 @@ def register():
     if User.query.filter_by(email=email).first():
         return jsonify({"success": False, "error": "该邮箱已注册"}), 409
 
-    # 创建用户
-    user = User(email=email, is_verified=True)
+    # 创建用户，赠送注册奖励
+    signup_bonus = Decimal('4')
+    user = User(email=email, is_verified=True, token_balance=signup_bonus)
     user.set_password(password)
     db.session.add(user)
+    db.session.flush()  # 获取 user.id
+
+    bonus_tx = TokenTransaction(
+        user_id=user.id,
+        type='signup_bonus',
+        amount=signup_bonus,
+        balance=signup_bonus,
+        reference='signup',
+    )
+    db.session.add(bonus_tx)
     db.session.commit()
 
     # 清理验证标记
