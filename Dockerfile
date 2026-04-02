@@ -1,33 +1,36 @@
-FROM python:3.11
+# ---- Stage 1: Build frontend static files ----
+FROM node:18-alpine AS frontend-build
 
-# 安装 Node.js（满足 >=18）及必要工具。
-# Debian 源偶发 502，这里做一次重试并允许 --fix-missing。
-RUN set -eux; \
-  apt_get_install() { \
-    apt-get update && apt-get install -y --fix-missing --no-install-recommends nodejs npm; \
-  }; \
-  apt_get_install || (sleep 5 && apt_get_install); \
-  rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ .
+# Production: API is same-origin via Nginx, so baseURL = ""
+ENV VITE_API_BASE_URL=""
+RUN npm run build
 
-# 从 uv 官方镜像复制 uv
+# ---- Stage 2: Production backend + static files ----
+FROM python:3.11-slim
+
 COPY --from=ghcr.io/astral-sh/uv:0.9.26 /uv /uvx /bin/
 
 WORKDIR /app
 
-# 先复制依赖描述文件以利用缓存
-COPY package.json package-lock.json ./
-COPY frontend/package.json frontend/package-lock.json ./frontend/
-COPY backend/pyproject.toml backend/uv.lock ./backend/
+# Python deps
+COPY backend/pyproject.toml backend/uv.lock ./
+RUN uv sync --frozen
 
-# 安装依赖（Node + Python）
-RUN npm ci \
-  && npm ci --prefix frontend \
-  && cd backend && uv sync --frozen
+# Backend source
+COPY backend/ .
 
-# 复制项目源码
-COPY . .
+# Frontend static files (built in stage 1)
+COPY --from=frontend-build /app/dist /app/static
 
-EXPOSE 3000 5001
+EXPOSE 5001
 
-# 同时启动前后端（开发模式）
-CMD ["npm", "run", "dev"]
+CMD ["uv", "run", "gunicorn", \
+     "--bind", "0.0.0.0:5001", \
+     "--workers", "2", \
+     "--threads", "4", \
+     "--timeout", "300", \
+     "app:create_app()"]
