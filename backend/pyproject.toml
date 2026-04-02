@@ -1,34 +1,43 @@
 [project]
-name = "mirofish-backend"
-version = "0.1.0"
-description = "MiroFish - 简洁通用的群体智能引擎，预测万物"
+name = "polysport-backend"
+version = "0.2.0"
+description = "PolySport - AI Sports Prediction Engine powered by Multi-Agent Debate"
 requires-python = ">=3.11"
-license = { text = "AGPL-3.0" }
+license = { text = "MIT" }
 authors = [
-    { name = "MiroFish Team" }
+    { name = "PolySport Team" }
 ]
 
 dependencies = [
     # 核心框架
     "flask>=3.0.0",
     "flask-cors>=6.0.0",
-    
-    # LLM 相关
+
+    # 数据库 & 认证
+    "flask-sqlalchemy>=3.1.0",
+    "flask-jwt-extended>=4.6.0",
+    "psycopg2-binary>=2.9.0",
+
+    # Redis
+    "redis>=5.0.0",
+
+    # LLM
     "openai>=1.0.0",
-    
+
     # Zep Cloud
     "zep-cloud==3.13.0",
-    
-    # OASIS 社交媒体模拟
-    "camel-oasis==0.2.5",
-    "camel-ai==0.2.78",
-    
+
+    # NBA 数据
+    "nba_api>=1.4.1",
+
+    # Polygon (链上聪明钱)
+    "web3>=6.0.0",
+
     # 文件处理
     "PyMuPDF>=1.24.0",
-    # 编码检测（支持非UTF-8编码的文本文件）
     "charset-normalizer>=3.0.0",
     "chardet>=5.0.0",
-    
+
     # 工具库
     "python-dotenv>=1.0.0",
     "pydantic>=2.0.0",
