@@ -4,11 +4,10 @@ API路由模块
 
 from flask import Blueprint
 
-graph_bp = Blueprint('graph', __name__)
-simulation_bp = Blueprint('simulation', __name__)
-report_bp = Blueprint('report', __name__)
+prediction_bp = Blueprint('prediction', __name__)
+auth_bp = Blueprint('auth', __name__)
+deposit_bp = Blueprint('deposit', __name__)
 
-from . import graph  # noqa: E402, F401
-from . import simulation  # noqa: E402, F401
-from . import report  # noqa: E402, F401
-
+from . import prediction  # noqa: E402, F401
+from . import auth  # noqa: E402, F401
+from . import deposit  # noqa: E402, F401

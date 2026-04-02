@@ -1,9 +1,13 @@
 FROM python:3.11
 
-# 安装 Node.js （满足 >=18）及必要工具
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends nodejs npm \
-  && rm -rf /var/lib/apt/lists/*
+# 安装 Node.js（满足 >=18）及必要工具。
+# Debian 源偶发 502，这里做一次重试并允许 --fix-missing。
+RUN set -eux; \
+  apt_get_install() { \
+    apt-get update && apt-get install -y --fix-missing --no-install-recommends nodejs npm; \
+  }; \
+  apt_get_install || (sleep 5 && apt_get_install); \
+  rm -rf /var/lib/apt/lists/*
 
 # 从 uv 官方镜像复制 uv
 COPY --from=ghcr.io/astral-sh/uv:0.9.26 /uv /uvx /bin/

@@ -4,65 +4,100 @@
 """
 
 import os
+from datetime import timedelta
 from dotenv import load_dotenv
 
-# 加载项目根目录的 .env 文件
-# 路径: MiroFish/.env (相对于 backend/app/config.py)
 project_root_env = os.path.join(os.path.dirname(__file__), '../../.env')
 
 if os.path.exists(project_root_env):
     load_dotenv(project_root_env, override=True)
 else:
-    # 如果根目录没有 .env，尝试加载环境变量（用于生产环境）
     load_dotenv(override=True)
 
 
 class Config:
     """Flask配置类"""
-    
+
     # Flask配置
     SECRET_KEY = os.environ.get('SECRET_KEY', 'mirofish-secret-key')
     DEBUG = os.environ.get('FLASK_DEBUG', 'True').lower() == 'true'
-    
-    # JSON配置 - 禁用ASCII转义，让中文直接显示（而不是 \uXXXX 格式）
+
     JSON_AS_ASCII = False
-    
-    # LLM配置（统一使用OpenAI格式）
+
+    # PostgreSQL
+    SQLALCHEMY_DATABASE_URI = os.environ.get(
+        'DATABASE_URL', 'postgresql://mirofish:mirofish@localhost:5432/mirofish')
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # JWT
+    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'dev-secret-change-me')
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(minutes=15)
+    JWT_REFRESH_TOKEN_EXPIRES = timedelta(days=30)
+
+    # SMTP
+    SMTP_HOST = os.environ.get('SMTP_HOST', 'smtp.gmail.com')
+    SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
+    SMTP_USE_TLS = os.environ.get('SMTP_USE_TLS', 'true').lower() == 'true'
+    SMTP_USERNAME = os.environ.get('SMTP_USERNAME', '')
+    SMTP_PASSWORD = os.environ.get('SMTP_PASSWORD', '')
+    SMTP_SENDER = os.environ.get('SMTP_SENDER', '')
+
+    # LLM配置
     LLM_API_KEY = os.environ.get('LLM_API_KEY')
     LLM_BASE_URL = os.environ.get('LLM_BASE_URL', 'https://api.openai.com/v1')
     LLM_MODEL_NAME = os.environ.get('LLM_MODEL_NAME', 'gpt-4o-mini')
-    
+
+    # 加速 LLM 配置（用于辩论加速，可选）
+    LLM_BOOST_API_KEY = os.environ.get('LLM_BOOST_API_KEY') or None
+    LLM_BOOST_BASE_URL = os.environ.get('LLM_BOOST_BASE_URL') or None
+    LLM_BOOST_MODEL_NAME = os.environ.get('LLM_BOOST_MODEL_NAME') or None
+
+    @classmethod
+    def has_boost_llm(cls) -> bool:
+        return bool(cls.LLM_BOOST_API_KEY and cls.LLM_BOOST_MODEL_NAME)
+
     # Zep配置
     ZEP_API_KEY = os.environ.get('ZEP_API_KEY')
-    
-    # 文件上传配置
-    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
-    UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), '../uploads')
-    ALLOWED_EXTENSIONS = {'pdf', 'md', 'txt', 'markdown'}
-    
+
     # 文本处理配置
-    DEFAULT_CHUNK_SIZE = 500  # 默认切块大小
-    DEFAULT_CHUNK_OVERLAP = 50  # 默认重叠大小
-    
-    # OASIS模拟配置
-    OASIS_DEFAULT_MAX_ROUNDS = int(os.environ.get('OASIS_DEFAULT_MAX_ROUNDS', '10'))
-    OASIS_SIMULATION_DATA_DIR = os.path.join(os.path.dirname(__file__), '../uploads/simulations')
-    
-    # OASIS平台可用动作配置
-    OASIS_TWITTER_ACTIONS = [
-        'CREATE_POST', 'LIKE_POST', 'REPOST', 'FOLLOW', 'DO_NOTHING', 'QUOTE_POST'
-    ]
-    OASIS_REDDIT_ACTIONS = [
-        'LIKE_POST', 'DISLIKE_POST', 'CREATE_POST', 'CREATE_COMMENT',
-        'LIKE_COMMENT', 'DISLIKE_COMMENT', 'SEARCH_POSTS', 'SEARCH_USER',
-        'TREND', 'REFRESH', 'DO_NOTHING', 'FOLLOW', 'MUTE'
-    ]
-    
-    # Report Agent配置
-    REPORT_AGENT_MAX_TOOL_CALLS = int(os.environ.get('REPORT_AGENT_MAX_TOOL_CALLS', '5'))
-    REPORT_AGENT_MAX_REFLECTION_ROUNDS = int(os.environ.get('REPORT_AGENT_MAX_REFLECTION_ROUNDS', '2'))
-    REPORT_AGENT_TEMPERATURE = float(os.environ.get('REPORT_AGENT_TEMPERATURE', '0.5'))
-    
+    DEFAULT_CHUNK_SIZE = 500
+    DEFAULT_CHUNK_OVERLAP = 50
+
+    # 辩论引擎配置
+    DEBATE_NUM_ROUNDS = 3
+    DEBATE_LLM_TEMPERATURE = 0.7
+    DEBATE_LLM_MAX_TOKENS = 2048
+    GRAPH_CHUNK_SIZE = 500
+    GRAPH_CHUNK_OVERLAP = 50
+
+    # NBA API 配置
+    NBA_API_ENABLED = os.environ.get('NBA_API_ENABLED', 'true').lower() == 'true'
+    NBA_API_TIMEOUT = int(os.environ.get('NBA_API_TIMEOUT', '30'))
+    NBA_API_DELAY = float(os.environ.get('NBA_API_DELAY', '0.6'))
+    NBA_API_SEASON = os.environ.get('NBA_API_SEASON', '')  # 空=自动推断当前赛季
+
+    # 聪明钱配置
+    SMART_MONEY_ENABLED = os.environ.get('SMART_MONEY_ENABLED', 'true').lower() == 'true'
+    SMART_MONEY_TIMEOUT = int(os.environ.get('SMART_MONEY_TIMEOUT', '15'))
+    SMART_MONEY_RPC_URL = os.environ.get('SMART_MONEY_RPC_URL', '')
+
+    # Redis 配置
+    REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+    PREDICTION_TTL = int(os.environ.get('PREDICTION_TTL', str(7 * 24 * 3600)))  # 默认7天
+
+    # 预测结果存储
+    PREDICTION_RESULTS_DIR = os.path.join(os.path.dirname(__file__), '../uploads/predictions')
+
+    # Polygon 链上验证
+    POLYGON_RPC_URL = os.environ.get('POLYGON_RPC_URL', 'https://polygon-bor-rpc.publicnode.com')
+    POLYGON_USDT_CONTRACT = os.environ.get('POLYGON_USDT_CONTRACT', '0xc2132D05D31c914a87C6611C10748AEb04B58e8F')
+    PLATFORM_WALLET_ADDRESS = os.environ.get('PLATFORM_WALLET_ADDRESS', '')
+    DEPOSIT_MIN_CONFIRMATIONS = int(os.environ.get('DEPOSIT_MIN_CONFIRMATIONS', '5'))
+
+    # 预测定价 (Token)
+    PREDICTION_COST_NORMAL = 2
+    PREDICTION_COST_PREMIUM = 4
+
     @classmethod
     def validate(cls):
         """验证必要配置"""
@@ -72,4 +107,3 @@ class Config:
         if not cls.ZEP_API_KEY:
             errors.append("ZEP_API_KEY 未配置")
         return errors
-

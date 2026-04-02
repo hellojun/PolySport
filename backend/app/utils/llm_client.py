@@ -5,10 +5,14 @@ LLM客户端封装
 
 import json
 import re
+import time
 from typing import Optional, Dict, Any, List
 from openai import OpenAI
 
 from ..config import Config
+from ..utils.logger import get_logger
+
+logger = get_logger('mirofish.llm_client')
 
 
 class LLMClient:
@@ -71,33 +75,48 @@ class LLMClient:
         self,
         messages: List[Dict[str, str]],
         temperature: float = 0.3,
-        max_tokens: int = 4096
+        max_tokens: int = 4096,
+        max_retries: int = 2,
     ) -> Dict[str, Any]:
         """
-        发送聊天请求并返回JSON
-        
+        发送聊天请求并返回JSON，空/无效响应自动重试
+
         Args:
             messages: 消息列表
             temperature: 温度参数
             max_tokens: 最大token数
-            
+            max_retries: 最大重试次数（默认2，共最多3次调用）
+
         Returns:
             解析后的JSON对象
         """
-        response = self.chat(
-            messages=messages,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            response_format={"type": "json_object"}
-        )
-        # 清理markdown代码块标记
-        cleaned_response = response.strip()
-        cleaned_response = re.sub(r'^```(?:json)?\s*\n?', '', cleaned_response, flags=re.IGNORECASE)
-        cleaned_response = re.sub(r'\n?```\s*$', '', cleaned_response)
-        cleaned_response = cleaned_response.strip()
+        last_error = None
+        for attempt in range(1 + max_retries):
+            response = self.chat(
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format={"type": "json_object"}
+            )
+            # 清理markdown代码块标记
+            cleaned_response = response.strip()
+            cleaned_response = re.sub(r'^```(?:json)?\s*\n?', '', cleaned_response, flags=re.IGNORECASE)
+            cleaned_response = re.sub(r'\n?```\s*$', '', cleaned_response)
+            cleaned_response = cleaned_response.strip()
 
-        try:
-            return json.loads(cleaned_response)
-        except json.JSONDecodeError:
-            raise ValueError(f"LLM返回的JSON格式无效: {cleaned_response}")
+            if not cleaned_response:
+                last_error = "LLM返回空内容"
+                logger.warning(f"chat_json 第{attempt+1}次调用返回空内容，重试...")
+                time.sleep(1)
+                continue
+
+            try:
+                return json.loads(cleaned_response)
+            except json.JSONDecodeError as e:
+                last_error = f"JSON解析失败: {e}, 原始内容: {cleaned_response[:200]}"
+                logger.warning(f"chat_json 第{attempt+1}次调用JSON无效，重试... ({last_error})")
+                time.sleep(1)
+                continue
+
+        raise ValueError(f"chat_json {1+max_retries}次尝试后仍失败: {last_error}")
 

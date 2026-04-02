@@ -1,14 +1,46 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mirofish-postgres
+    environment:
+      POSTGRES_DB: mirofish
+      POSTGRES_USER: mirofish
+      POSTGRES_PASSWORD: mirofish
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: mirofish-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+
   mirofish:
-    image: ghcr.io/666ghj/mirofish:latest
-    # 加速镜像（如拉取缓慢可替换上方地址）
-    # image: ghcr.nju.edu.cn/666ghj/mirofish:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: mirofish
     env_file:
       - .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://mirofish:mirofish@postgres:5432/mirofish
     ports:
       - "3000:3000"
       - "5001:5001"
     restart: unless-stopped
+    depends_on:
+      - redis
+      - postgres
     volumes:
       - ./backend/uploads:/app/backend/uploads
+
+volumes:
+  postgres_data:
+  redis_data:

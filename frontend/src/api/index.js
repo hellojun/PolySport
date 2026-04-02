@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { authState, updateAccessToken, clearAuth, openAuthModal } from '../stores/auth'
 
 // 创建axios实例
 const service = axios.create({
@@ -9,9 +10,12 @@ const service = axios.create({
   }
 })
 
-// 请求拦截器
+// 请求拦截器：注入 Authorization header
 service.interceptors.request.use(
   config => {
+    if (authState.token && !config._skipAuthInterceptor) {
+      config.headers.Authorization = `Bearer ${authState.token}`
+    }
     return config
   },
   error => {
@@ -20,32 +24,97 @@ service.interceptors.request.use(
   }
 )
 
-// 响应拦截器（容错重试机制）
+// 是否正在刷新 token
+let isRefreshing = false
+let refreshSubscribers = []
+
+function onRefreshed(newToken) {
+  refreshSubscribers.forEach(cb => cb(newToken))
+  refreshSubscribers = []
+}
+
+function addRefreshSubscriber(cb) {
+  refreshSubscribers.push(cb)
+}
+
+// 响应拦截器
 service.interceptors.response.use(
   response => {
     const res = response.data
-    
+
     // 如果返回的状态码不是success，则抛出错误
     if (!res.success && res.success !== undefined) {
       console.error('API Error:', res.error || res.message || 'Unknown error')
       return Promise.reject(new Error(res.error || res.message || 'Error'))
     }
-    
+
     return res
   },
-  error => {
+  async error => {
+    const originalRequest = error.config
+
+    // 401: auth 接口（登录/注册等）直接返回错误，不触发 token 刷新
+    const isAuthApi = originalRequest.url?.includes('/api/auth/')
+    if (error.response?.status === 401 && !isAuthApi && !originalRequest._skipAuthInterceptor && !originalRequest._isRetry) {
+      if (!authState.refreshToken) {
+        clearAuth()
+        openAuthModal('login')
+        return Promise.reject(error)
+      }
+
+      if (isRefreshing) {
+        // 排队等待 refresh 完成
+        return new Promise(resolve => {
+          addRefreshSubscriber(newToken => {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`
+            originalRequest._isRetry = true
+            resolve(service(originalRequest))
+          })
+        })
+      }
+
+      isRefreshing = true
+      try {
+        const res = await axios.post(
+          (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5001') + '/api/auth/refresh',
+          {},
+          { headers: { Authorization: `Bearer ${authState.refreshToken}` } }
+        )
+        const newToken = res.data.access_token
+        updateAccessToken(newToken)
+        isRefreshing = false
+        onRefreshed(newToken)
+
+        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        originalRequest._isRetry = true
+        return service(originalRequest)
+      } catch (refreshError) {
+        isRefreshing = false
+        refreshSubscribers = []
+        clearAuth()
+        openAuthModal('login')
+        return Promise.reject(refreshError)
+      }
+    }
+
     console.error('Response error:', error)
-    
+
+    // 从后端响应体提取业务错误信息
+    const serverMsg = error.response?.data?.error || error.response?.data?.message
+    if (serverMsg) {
+      return Promise.reject(new Error(serverMsg))
+    }
+
     // 处理超时
     if (error.code === 'ECONNABORTED' && error.message.includes('timeout')) {
-      console.error('Request timeout')
+      return Promise.reject(new Error('Request timeout'))
     }
-    
+
     // 处理网络错误
     if (error.message === 'Network Error') {
-      console.error('Network error - please check your connection')
+      return Promise.reject(new Error('Network error'))
     }
-    
+
     return Promise.reject(error)
   }
 )
@@ -57,7 +126,7 @@ export const requestWithRetry = async (requestFn, maxRetries = 3, delay = 1000) 
       return await requestFn()
     } catch (error) {
       if (i === maxRetries - 1) throw error
-      
+
       console.warn(`Request failed, retrying (${i + 1}/${maxRetries})...`)
       await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)))
     }

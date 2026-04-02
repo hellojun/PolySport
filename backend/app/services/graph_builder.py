@@ -389,7 +389,7 @@ class GraphBuilderService:
                 )
             
             if pending_episodes:
-                time.sleep(3)  # 每3秒检查一次
+                time.sleep(1)  # 每1秒检查一次
         
         if progress_callback:
             progress_callback(f"处理完成: {completed_count}/{total_episodes}", 1.0)

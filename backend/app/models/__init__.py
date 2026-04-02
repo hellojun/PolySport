@@ -3,7 +3,14 @@
 """
 
 from .task import TaskManager, TaskStatus
-from .project import Project, ProjectStatus, ProjectManager
+from .user import User
+from .deposit import DepositOrder, TokenTransaction
+from .prediction_task import PredictionTask
+from .prediction import Prediction
 
-__all__ = ['TaskManager', 'TaskStatus', 'Project', 'ProjectStatus', 'ProjectManager']
-
+__all__ = [
+    'TaskManager', 'TaskStatus',
+    'User',
+    'DepositOrder', 'TokenTransaction',
+    'PredictionTask', 'Prediction',
+]

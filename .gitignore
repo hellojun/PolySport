@@ -56,5 +56,8 @@ backend/logs/
 # 上传文件
 backend/uploads/
 
+# 缓存数据（排行榜等）
+backend/app/data/
+
 # Docker 数据
 data/

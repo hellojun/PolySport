@@ -1,10 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { isLoggedIn } from '../stores/auth'
 import Home from '../views/Home.vue'
-import Process from '../views/MainView.vue'
-import SimulationView from '../views/SimulationView.vue'
-import SimulationRunView from '../views/SimulationRunView.vue'
-import ReportView from '../views/ReportView.vue'
-import InteractionView from '../views/InteractionView.vue'
+import PredictionView from '../views/PredictionView.vue'
+import HistoryView from '../views/HistoryView.vue'
 
 const routes = [
   {
@@ -13,40 +11,30 @@ const routes = [
     component: Home
   },
   {
-    path: '/process/:projectId',
-    name: 'Process',
-    component: Process,
-    props: true
+    path: '/predict',
+    name: 'Prediction',
+    component: PredictionView
   },
   {
-    path: '/simulation/:simulationId',
-    name: 'Simulation',
-    component: SimulationView,
-    props: true
-  },
-  {
-    path: '/simulation/:simulationId/start',
-    name: 'SimulationRun',
-    component: SimulationRunView,
-    props: true
-  },
-  {
-    path: '/report/:reportId',
-    name: 'Report',
-    component: ReportView,
-    props: true
-  },
-  {
-    path: '/interaction/:reportId',
-    name: 'Interaction',
-    component: InteractionView,
-    props: true
+    path: '/history',
+    name: 'History',
+    component: HistoryView,
+    meta: { auth: true }
   }
 ]
 
 const router = createRouter({
   history: createWebHistory(),
   routes
+})
+
+router.beforeEach((to, from, next) => {
+  const loggedIn = isLoggedIn()
+
+  if (to.meta.auth && !loggedIn) {
+    return next('/predict')
+  }
+  next()
 })
 
 export default router
