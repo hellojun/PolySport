@@ -37,6 +37,7 @@ class NBAStatsService:
         self._team_map: Dict[str, int] = {}  # abbreviation → team_id
         self._delay = Config.NBA_API_DELAY
         self._timeout = Config.NBA_API_TIMEOUT
+        self._proxy = Config.NBA_API_PROXY or None
 
     def _get_team_id(self, abbreviation: str) -> Optional[int]:
         """缩写 → team_id，使用 nba_api.stats.static.teams"""
@@ -63,6 +64,7 @@ class NBAStatsService:
             data = LeagueStandings(
                 season=season,
                 timeout=self._timeout,
+                proxy=self._proxy,
             ).get_normalized_dict()
             rows = data.get('Standings', [])
             result = {}
@@ -92,6 +94,7 @@ class NBAStatsService:
                 measure_type_detailed_defense='Advanced',
                 season=season,
                 timeout=self._timeout,
+                proxy=self._proxy,
             ).get_normalized_dict()
             rows = data.get('LeagueDashTeamStats', [])
             for row in rows:
@@ -116,6 +119,7 @@ class NBAStatsService:
                 team_id=team_id,
                 season=season,
                 timeout=self._timeout,
+                proxy=self._proxy,
             ).get_normalized_dict()
             rows = data.get('PlayersSeasonTotals', [])
             # 按分钟排序取前 8
@@ -144,6 +148,7 @@ class NBAStatsService:
                 team_id=team_id,
                 season=season,
                 timeout=self._timeout,
+                proxy=self._proxy,
             ).get_normalized_dict()
             rows = data.get('TeamGameLog', [])
             games = []
@@ -178,6 +183,7 @@ class NBAStatsService:
             board = scoreboardv3.ScoreboardV3(
                 game_date=game_date,
                 timeout=self._timeout,
+                proxy=self._proxy,
             )
             data = board.get_dict()
             games = data.get('scoreboard', {}).get('games', [])

@@ -164,6 +164,7 @@ class PolymarketService:
             board = scoreboardv2.ScoreboardV2(
                 game_date=game_date,
                 timeout=Config.NBA_API_TIMEOUT,
+                proxy=Config.NBA_API_PROXY or None,
             )
 
             id_to_abbr = {t['id']: t['abbreviation'] for t in static_teams.get_teams()}

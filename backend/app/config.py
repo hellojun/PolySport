@@ -75,6 +75,7 @@ class Config:
     NBA_API_TIMEOUT = int(os.environ.get('NBA_API_TIMEOUT', '30'))
     NBA_API_DELAY = float(os.environ.get('NBA_API_DELAY', '0.6'))
     NBA_API_SEASON = os.environ.get('NBA_API_SEASON', '')  # 空=自动推断当前赛季
+    NBA_API_PROXY = os.environ.get('NBA_API_PROXY', '')  # e.g. http://user:pass@us-proxy:port
 
     # 聪明钱配置
     SMART_MONEY_ENABLED = os.environ.get('SMART_MONEY_ENABLED', 'true').lower() == 'true'
