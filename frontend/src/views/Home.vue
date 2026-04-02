@@ -208,6 +208,7 @@
         </router-link>
         <div class="footer-bottom">
           <p class="copyright">{{ t('home.copyright') }}</p>
+          <a class="footer-contact" href="https://t.me/Eileenddd" target="_blank" rel="noopener">Telegram: @Eileenddd</a>
         </div>
       </div>
     </footer>
@@ -962,6 +963,21 @@ onMounted(async () => {
   color: #555;
   letter-spacing: 1px;
   margin: 0;
+}
+
+.footer-contact {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: #666;
+  letter-spacing: 1px;
+  text-decoration: none;
+  margin-top: 10px;
+  display: inline-block;
+  transition: color 0.2s;
+}
+
+.footer-contact:hover {
+  color: var(--orange);
 }
 
 /* ===== Responsive ===== */
