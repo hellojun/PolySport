@@ -475,24 +475,48 @@ def delete_prediction(task_id):
     return jsonify({"success": True})
 
 
+def _seconds_until_et_midnight(date_str: str) -> int:
+    """计算从现在到指定日期美东时间 23:59:59 的剩余秒数，最少 600 秒"""
+    from zoneinfo import ZoneInfo
+    et = ZoneInfo('America/New_York')
+    target = datetime.strptime(date_str, '%Y-%m-%d').replace(
+        hour=23, minute=59, second=59, tzinfo=et,
+    )
+    now_et = datetime.now(et)
+    remaining = int((target - now_et).total_seconds())
+    return max(remaining, 600)  # 至少缓存 10 分钟
+
+
 @prediction_bp.route('/polymarket/events', methods=['GET'])
 def get_polymarket_events():
-    """获取指定日期的 Polymarket NBA 盘口"""
+    """获取指定日期的 Polymarket NBA 盘口（Redis 缓存至美东 23:59）"""
     date_str = request.args.get('date', '').strip()
 
     # 验证日期格式
     if not date_str or not re.match(r'^\d{4}-\d{2}-\d{2}$', date_str):
         return jsonify({"success": False, "error": "请提供有效日期，格式: YYYY-MM-DD"}), 400
 
+    # 尝试从 Redis 缓存读取
+    r = get_redis()
+    cache_key = f"polymarket_events:{date_str}"
+    cached = r.get(cache_key)
+    if cached:
+        logger.info(f"Polymarket events cache hit: {date_str}")
+        return jsonify(json.loads(cached))
+
     try:
         from ..services.data_fetcher.polymarket import PolymarketService
         service = PolymarketService()
         events = service.fetch_nba_events(date_str)
-        return jsonify({
+        result = {
             "success": True,
             "date": date_str,
             "events": events,
-        })
+        }
+        # 写入 Redis 缓存，有效期到该日期美东 23:59
+        ttl = _seconds_until_et_midnight(date_str)
+        r.set(cache_key, json.dumps(result, ensure_ascii=False), ex=ttl)
+        return jsonify(result)
     except Exception as e:
         logger.error(f"获取 Polymarket 盘口失败: {e}")
         return jsonify({"success": False, "error": f"获取盘口数据失败: {e}"}), 500

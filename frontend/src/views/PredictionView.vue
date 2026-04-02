@@ -324,8 +324,20 @@ const { t, locale } = useI18n()
 // ---- State machine: select | progress | result ----
 const viewState = ref('select')
 
-// Date select
-const selectedDate = ref(new Date().toISOString().slice(0, 10))
+// Date select — default to tomorrow in US Eastern time
+function getTomorrowET() {
+  const now = new Date()
+  // Get current date parts in America/New_York timezone
+  const etParts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/New_York',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  }).format(now) // returns "YYYY-MM-DD" in en-CA locale
+  // Add 1 day
+  const d = new Date(etParts + 'T12:00:00')
+  d.setDate(d.getDate() + 1)
+  return d.toISOString().slice(0, 10)
+}
+const selectedDate = ref(getTomorrowET())
 const fetchingEvents = ref(false)
 const fetchError = ref('')
 const events = ref([])
@@ -720,6 +732,11 @@ onMounted(async () => {
     } catch {
       _clearActiveTask()
     }
+  }
+
+  // 3. Auto-fetch events for the default date when landing fresh
+  if (viewState.value === 'select' && !eventsFetched.value) {
+    fetchEvents()
   }
 })
 </script>
