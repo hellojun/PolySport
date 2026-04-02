@@ -264,11 +264,26 @@ class TaskManager:
         return task_id
 
     def get_task(self, task_id: str) -> Optional[Task]:
-        """获取任务：内存 → Redis → PG（三级 fallback）"""
+        """
+        获取任务：
+        - 活跃任务（PENDING/PROCESSING）始终从 Redis 读取最新状态，
+          避免多 worker 进程内存不一致导致轮询结果跳动。
+        - 终态任务走内存 → Redis → PG 三级 fallback。
+        """
         with self._task_lock:
             task = self._tasks.get(task_id)
-            if task:
-                return task
+
+        # 活跃任务：从 Redis 刷新，确保多 worker 一致
+        if task and task.status in (TaskStatus.PENDING, TaskStatus.PROCESSING):
+            fresh = self._load_from_redis(task_id)
+            if fresh:
+                with self._task_lock:
+                    self._tasks[task_id] = fresh
+                return fresh
+            return task  # Redis 读取失败时回退到内存
+
+        if task:
+            return task
 
         # 内存中没有，从 Redis 加载
         task = self._load_from_redis(task_id)
@@ -280,7 +295,6 @@ class TaskManager:
         # Redis 中也没有，从 PG 加载
         task = self._load_from_pg(task_id)
         if task:
-            # 活跃任务回填内存；终态任务不回填（避免内存膨胀）
             if task.status in (TaskStatus.PENDING, TaskStatus.PROCESSING):
                 with self._task_lock:
                     self._tasks[task_id] = task
