@@ -116,7 +116,7 @@ def build_svg(win_rate: str, games: int, agents: int, rounds: int) -> str:
   <!-- 底部: 网址居中显眼 -->
   <text x="200" y="354" text-anchor="middle"
         font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="bold"
-        fill="#4ade80">polysport.pro</text>
+        fill="#4ade80">https://polysport.pro</text>
 
   <!-- 7-day free pass 标签居中 -->
   <rect x="140" y="366" width="120" height="24" rx="12" ry="12"
