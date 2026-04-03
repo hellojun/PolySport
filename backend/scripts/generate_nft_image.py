@@ -111,21 +111,21 @@ def build_svg(win_rate: str, games: int, agents: int, rounds: int) -> str:
         fill="#6b7280">rounds</text>
 
   <!-- 分割线 -->
-  <line x1="36" y1="330" x2="364" y2="330" stroke="#1f2937" stroke-width="1"/>
+  <line x1="36" y1="322" x2="364" y2="322" stroke="#1f2937" stroke-width="1"/>
 
-  <!-- 底部: 7-day free pass 左对齐 -->
-  <rect x="36" y="348" width="140" height="30" rx="15" ry="15"
+  <!-- 底部: 网址居中显眼 -->
+  <text x="200" y="354" text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="bold"
+        fill="#4ade80">polysport.pro</text>
+
+  <!-- 7-day free pass 标签居中 -->
+  <rect x="140" y="366" width="120" height="24" rx="12" ry="12"
         fill="#22c55e" fill-opacity="0.1"/>
-  <rect x="36" y="348" width="140" height="30" rx="15" ry="15"
+  <rect x="140" y="366" width="120" height="24" rx="12" ry="12"
         fill="none" stroke="#22c55e" stroke-opacity="0.3" stroke-width="0.8"/>
-  <text x="106" y="368" text-anchor="middle"
-        font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="bold"
+  <text x="200" y="383" text-anchor="middle"
+        font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="bold"
         fill="#4ade80">7-day free pass</text>
-
-  <!-- polysport.pro 右对齐 -->
-  <text x="364" y="369" text-anchor="end"
-        font-family="monospace" font-size="12" font-style="italic"
-        fill="#4b5563">polysport.pro</text>
 </svg>'''
 
 

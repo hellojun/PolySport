@@ -22,7 +22,7 @@ def token_metadata(token_id: int):
         "description": (
             "PolySport Prediction Pass grants access to AI-powered NBA game predictions. "
             "Our debate engine uses 7 specialized analyst agents across 3 rounds to deliver "
-            "high-accuracy forecasts."
+            "high-accuracy forecasts. Visit https://polysport.pro to start your free trial."
         ),
         "image": "https://polysport.pro/nft/pass.png",
         "external_url": "https://polysport.pro/claim",
