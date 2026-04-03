@@ -15,6 +15,56 @@ from .extensions import db, jwt
 from .utils.logger import setup_logger, get_logger
 
 
+def _cleanup_interrupted_tasks(app, logger):
+    """启动时将被中断的 pending/processing 任务标记为 failed 并退还 token"""
+    from datetime import datetime
+    from decimal import Decimal
+    try:
+        with app.app_context():
+            from .extensions import db
+            from .models.prediction_task import PredictionTask
+            from .models.user import User
+            from .models.deposit import TokenTransaction
+
+            interrupted = PredictionTask.query.filter(
+                PredictionTask.status.in_(['pending', 'processing'])
+            ).all()
+
+            if not interrupted:
+                return
+
+            logger.info(f"发现 {len(interrupted)} 个被中断的预测任务，正在清理...")
+
+            for task in interrupted:
+                task.status = 'failed'
+                task.error = '服务重启，任务被中断'
+                task.updated_at = datetime.utcnow()
+
+                # 退还 token
+                user_id = task.user_id or (task.metadata_ or {}).get('user_id')
+                if user_id:
+                    pred_type = (task.metadata_ or {}).get('prediction_type', 'normal')
+                    from .config import Config as C
+                    cost = C.PREDICTION_COST_NORMAL if pred_type == 'normal' else C.PREDICTION_COST_PREMIUM
+                    user = db.session.get(User, user_id)
+                    if user:
+                        user.token_balance += cost
+                        tx = TokenTransaction(
+                            user_id=user_id,
+                            type='refund',
+                            amount=Decimal(str(cost)),
+                            balance=user.token_balance,
+                            reference=task.id,
+                        )
+                        db.session.add(tx)
+                        logger.info(f"  任务 {task.id[:8]}... 退还 {cost} token 给用户 {user_id}")
+
+            db.session.commit()
+            logger.info(f"清理完成，共处理 {len(interrupted)} 个任务")
+    except Exception as e:
+        logger.warning(f"清理中断任务失败: {e}")
+
+
 def create_app(config_class=Config):
     """Flask应用工厂函数"""
     app = Flask(__name__)
@@ -81,6 +131,10 @@ def create_app(config_class=Config):
         from .models.prediction_task import PredictionTask  # noqa: F401
         from .models.prediction import Prediction  # noqa: F401
         db.create_all()
+
+    # 启动时清理被中断的预测任务：标记 failed + 退还 token
+    if should_log_startup:
+        _cleanup_interrupted_tasks(app, logger)
 
     # 聪明钱排行榜：启动检查 + 月度定时任务
     if should_log_startup:
