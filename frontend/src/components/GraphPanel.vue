@@ -2,12 +2,7 @@
   <div class="graph-panel">
     <div class="graph-header">
       <h3 class="graph-title">{{ t('graph.title') }}</h3>
-      <div class="graph-controls">
-        <label class="ctrl-label">
-          <input type="checkbox" v-model="showEdgeLabels" @change="updateEdgeLabels" />
-          {{ t('graph.show_edge_labels') }}
-        </label>
-      </div>
+      <div class="graph-controls"></div>
     </div>
 
     <div ref="graphContainer" class="graph-container">

@@ -8,8 +8,6 @@
       </span>
     </div>
 
-    <p class="step-desc">{{ step.desc }}</p>
-
     <!-- Step 1: 创建知识图谱 -->
     <div v-if="step.step === 1 && d" class="step-details">
       <div class="detail-row">
