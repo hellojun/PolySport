@@ -303,7 +303,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -666,6 +666,14 @@ function resetToDateSelect() {
   showTypePanel.value = false
   selectedEvent.value = null
 }
+
+// 导航栏点击"预测"时，query._t 变化 → 重置到选赛页
+watch(() => route.query._t, (newT) => {
+  if (newT && viewState.value !== 'select') {
+    resetToDateSelect()
+    fetchEvents()
+  }
+})
 
 // 支持从 URL 参数恢复结果（历史记录跳转）+ 恢复活跃任务
 onMounted(async () => {

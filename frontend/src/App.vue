@@ -8,7 +8,7 @@
       </router-link>
       <div class="nav-links">
         <template v-if="loggedIn">
-          <router-link to="/predict" class="nav-link">{{ t('nav.predict') }}</router-link>
+          <a class="nav-link" :class="{ 'router-link-active': $route.path === '/predict' }" @click="goPredict">{{ t('nav.predict') }}</a>
           <router-link to="/history" class="nav-link">{{ t('nav.history') }}</router-link>
           <button class="lang-switch" @click="toggleLocale">
             {{ locale === 'zh' ? 'EN' : '中' }}
@@ -33,11 +33,23 @@
 <script setup>
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter, useRoute } from 'vue-router'
 import { isLoggedIn, openAuthModal, openAccountModal } from './stores/auth'
 import AuthModal from './components/AuthModal.vue'
 import AccountModal from './components/AccountModal.vue'
 
+const router = useRouter()
+const route = useRoute()
 const { t, locale } = useI18n()
+
+function goPredict() {
+  if (route.path === '/predict') {
+    // 已在 /predict，加时间戳 query 强制触发路由变化
+    router.push({ path: '/predict', query: { _t: Date.now() } })
+  } else {
+    router.push('/predict')
+  }
+}
 
 // ---- Auth state ----
 const loggedIn = computed(() => isLoggedIn())
@@ -126,10 +138,12 @@ button { font-family: inherit; }
   color: #999;
   text-decoration: none;
   transition: color 0.2s;
+  cursor: pointer;
 }
 
 .nav-link:hover { color: var(--white); }
-.nav-link.router-link-exact-active { color: var(--orange); }
+.nav-link.router-link-exact-active,
+.nav-link.router-link-active { color: var(--orange); }
 
 .login-btn {
   background: none;
