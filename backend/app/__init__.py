@@ -64,10 +64,11 @@ def create_app(config_class=Config):
         return response
 
     # 注册蓝图
-    from .api import prediction_bp, auth_bp, deposit_bp
+    from .api import prediction_bp, auth_bp, deposit_bp, nft_bp
     app.register_blueprint(prediction_bp, url_prefix='/api/prediction')
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(deposit_bp, url_prefix='/api/deposit')
+    app.register_blueprint(nft_bp, url_prefix='/api/nft')
 
     @app.route('/health')
     def health():
