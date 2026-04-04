@@ -485,9 +485,19 @@ def _seconds_until_et_midnight(date_str: str) -> int:
     return max(remaining, 600)  # 至少缓存 10 分钟
 
 
+def _events_have_incomplete_odds(events: list) -> bool:
+    """检查是否有盘口只有 moneyline 但缺少 spread/total（说明缓存过早，市场尚未全部上线）"""
+    for ev in events:
+        odds = ev.get("market_odds", {})
+        if odds.get("moneyline_home") is not None:
+            if odds.get("spread_line") is None or odds.get("total_line") is None:
+                return True
+    return False
+
+
 @prediction_bp.route('/polymarket/events', methods=['GET'])
 def get_polymarket_events():
-    """获取指定日期的 Polymarket NBA 盘口（Redis 缓存至美东 23:59）"""
+    """获取指定日期的 Polymarket NBA 盘口（Redis 缓存至美东 23:59，缺失市场自动刷新）"""
     date_str = request.args.get('date', '').strip()
 
     # 验证日期格式
@@ -499,8 +509,12 @@ def get_polymarket_events():
     cache_key = f"polymarket_events:{date_str}"
     cached = r.get(cache_key)
     if cached:
-        logger.info(f"Polymarket events cache hit: {date_str}")
-        return jsonify(json.loads(cached))
+        cached_data = json.loads(cached)
+        # 如果缓存中有盘口缺少 spread/total，自动刷新
+        if not _events_have_incomplete_odds(cached_data.get("events", [])):
+            logger.info(f"Polymarket events cache hit: {date_str}")
+            return jsonify(cached_data)
+        logger.info(f"Polymarket events cache stale (incomplete odds): {date_str}, re-fetching")
 
     try:
         from ..services.data_fetcher.polymarket import PolymarketService
@@ -517,6 +531,10 @@ def get_polymarket_events():
         return jsonify(result)
     except Exception as e:
         logger.error(f"获取 Polymarket 盘口失败: {e}")
+        # 如果重新拉取失败但有旧缓存，返回旧缓存
+        if cached:
+            logger.info(f"Polymarket re-fetch failed, returning stale cache: {date_str}")
+            return jsonify(json.loads(cached))
         return jsonify({"success": False, "error": f"获取盘口数据失败: {e}"}), 500
 
 
@@ -798,6 +816,32 @@ def _prediction_worker(app, task_id: str, matchup: MatchupInput, lang: str = "en
         )
 
         llm = LLMClient()
+
+        # ── 补全不完整的 market_odds（spread/total 可能在首次缓存时尚未上线） ──
+        if matchup.market_odds and matchup.game_date:
+            mo = matchup.market_odds
+            if mo.moneyline_home is not None and (mo.spread_line is None or mo.total_line is None):
+                logger.info("market_odds 缺少 spread/total，尝试重新拉取 Polymarket 数据")
+                try:
+                    from ..services.data_fetcher.polymarket import PolymarketService
+                    fresh_events = PolymarketService().fetch_nba_events(matchup.game_date)
+                    for ev in fresh_events:
+                        if (ev.get("home_team", {}).get("abbreviation") == matchup.home_team.abbreviation
+                                and ev.get("away_team", {}).get("abbreviation") == matchup.away_team.abbreviation):
+                            fresh_odds = ev.get("market_odds", {})
+                            if mo.spread_line is None and fresh_odds.get("spread_line") is not None:
+                                mo.spread_line = fresh_odds["spread_line"]
+                                mo.spread_home = fresh_odds.get("spread_home")
+                                mo.spread_away = fresh_odds.get("spread_away")
+                                logger.info(f"已补全 spread: {mo.spread_line}")
+                            if mo.total_line is None and fresh_odds.get("total_line") is not None:
+                                mo.total_line = fresh_odds["total_line"]
+                                mo.total_over = fresh_odds.get("total_over")
+                                mo.total_under = fresh_odds.get("total_under")
+                                logger.info(f"已补全 total: {mo.total_line}")
+                            break
+                except Exception as e:
+                    logger.warning(f"补全 market_odds 失败: {e}")
 
         graph_context = ""
 
