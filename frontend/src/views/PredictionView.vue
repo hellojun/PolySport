@@ -125,7 +125,7 @@
       <section v-if="viewState === 'progress'" class="progress-section">
         <!-- 顶部进度条 -->
         <div class="progress-top-bar">
-          <div class="progress-matchup">{{ activeAway }} @ {{ activeHome }}</div>
+          <div class="progress-matchup">{{ activeAway }} {{ t(`team.${activeAway}`, '') }} @ {{ activeHome }} {{ t(`team.${activeHome}`, '') }}</div>
           <div class="progress-status-text">{{ taskMessage }}</div>
           <div class="progress-bar-container">
             <div class="progress-bar" :style="{ width: taskProgress + '%' }"></div>
@@ -161,7 +161,8 @@
       <!-- ===== RESULT 状态 ===== -->
       <section v-if="viewState === 'result'" class="result-section">
         <div class="result-header">
-          <h2>{{ activeAway }} @ {{ activeHome }} - {{ t('result.title') }}</h2>
+          <h2>{{ activeAway }} {{ t(`team.${activeAway}`, '') }} @ {{ activeHome }} {{ t(`team.${activeHome}`, '') }}</h2>
+          <span v-if="formattedGameTime" class="result-game-time">{{ formattedGameTime }}</span>
           <button class="new-btn" @click="resetToDateSelect">{{ t('result.new_prediction') }}</button>
         </div>
 
@@ -347,6 +348,7 @@ const eventsFetched = ref(false)
 const activeHome = ref('')
 const activeAway = ref('')
 const activeGameDate = ref('')
+const activeGameTime = ref('')
 
 // Progress
 const taskId = ref('')
@@ -384,6 +386,29 @@ const gameResult = ref(null)
 const fetchingGameResult = ref(false)
 const gameResultError = ref('')
 
+const formattedGameTime = computed(() => {
+  const gt = activeGameTime.value
+  if (!gt) return ''
+  try {
+    const d = new Date(gt)
+    if (isNaN(d.getTime())) return gt
+    const et = d.toLocaleString('en-US', {
+      timeZone: 'America/New_York',
+      month: 'numeric', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true,
+    })
+    if (locale.value !== 'zh') return `${et} ET`
+    const bj = d.toLocaleString('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      month: 'numeric', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: false,
+    })
+    return `${et} ET (${bj} ${t('history.beijing')})`
+  } catch {
+    return gt
+  }
+})
+
 // ---- Date select ----
 
 async function fetchEvents() {
@@ -419,6 +444,7 @@ async function selectGame(event) {
   activeHome.value = event.home_team.abbreviation
   activeAway.value = event.away_team.abbreviation
   activeGameDate.value = event.game_date || selectedDate.value
+  activeGameTime.value = event.game_time || ''
 
   // 获取余额
   try {
@@ -526,6 +552,7 @@ function _saveActiveTask() {
       home: activeHome.value,
       away: activeAway.value,
       gameDate: activeGameDate.value,
+      gameTime: activeGameTime.value,
       ts: Date.now(),
     }))
   } catch {}
@@ -663,6 +690,7 @@ function resetToDateSelect() {
   fetchingGameResult.value = false
   gameResultError.value = ''
   activeGameDate.value = ''
+  activeGameTime.value = ''
   showTypePanel.value = false
   selectedEvent.value = null
 }
@@ -684,6 +712,7 @@ onMounted(async () => {
     activeHome.value = route.query.home || ''
     activeAway.value = route.query.away || ''
     activeGameDate.value = route.query.game_date || ''
+    activeGameTime.value = route.query.game_time || ''
     try {
       const res = await getPredictionResult(qMatchupId, 'L1')
       bettingCard.value = res.prediction.betting_card || []
@@ -718,6 +747,7 @@ onMounted(async () => {
         activeHome.value = saved.home || ''
         activeAway.value = saved.away || ''
         activeGameDate.value = saved.gameDate || ''
+        activeGameTime.value = saved.gameTime || ''
         await loadResult()
       } else if (task.status === 'failed') {
         // 任务已失败，清除并提示
@@ -729,6 +759,7 @@ onMounted(async () => {
         activeHome.value = saved.home || ''
         activeAway.value = saved.away || ''
         activeGameDate.value = saved.gameDate || ''
+        activeGameTime.value = saved.gameTime || ''
         taskProgress.value = task.progress || 0
         taskMessage.value = task.message || ''
         const detail = task.progress_detail || {}
@@ -1069,14 +1100,24 @@ onMounted(async () => {
 /* ===== RESULT ===== */
 .result-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 32px;
+  gap: 4px 16px;
 }
 
 .result-header h2 {
   font-family: var(--font-mono);
   font-size: 1.5rem;
+}
+
+.result-game-time {
+  width: 100%;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: #888;
+  order: 3;
 }
 
 .new-btn {

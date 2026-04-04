@@ -24,8 +24,10 @@
           <div class="card-left">
             <div class="matchup">
               <span class="team-abbr">{{ item.away }}</span>
+              <span class="team-name">{{ t(`team.${item.away}`, '') }}</span>
               <span class="at-symbol">@</span>
               <span class="team-abbr">{{ item.home }}</span>
+              <span class="team-name">{{ t(`team.${item.home}`, '') }}</span>
               <span v-if="item.game_time || item.game_date" class="game-time-badge">
                 {{ formatGameTime(item.game_time, item.game_date) }}
               </span>
@@ -105,7 +107,7 @@ function viewResult(item) {
   if (item.status !== 'completed') return
   router.push({
     path: '/predict',
-    query: { matchup_id: item.matchup_id, home: item.home, away: item.away, game_date: item.game_date },
+    query: { matchup_id: item.matchup_id, home: item.home, away: item.away, game_date: item.game_date, game_time: item.game_time || '' },
   })
 }
 
@@ -297,6 +299,13 @@ function formatGameTime(gameTime, gameDate) {
   font-size: 1.3rem;
   font-weight: 800;
   letter-spacing: 1px;
+}
+
+.team-name {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
+  color: #888;
+  font-weight: 400;
 }
 
 .at-symbol {
