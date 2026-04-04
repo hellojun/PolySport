@@ -15,6 +15,7 @@ class AnalystRole:
     """分析师角色定义"""
     id: str
     name: str
+    name_en: str
     focus_areas: List[str]
     cognitive_bias: str
     system_prompt_template: str
@@ -59,6 +60,7 @@ ANALYST_ROLES: List[AnalystRole] = [
     AnalystRole(
         id="stats_analyst",
         name="统计分析师",
+        name_en="Stats Analyst",
         focus_areas=["advanced stats", "efficiency metrics", "historical trends", "pace and rating"],
         cognitive_bias="过度信赖数据，忽视不可量化因素",
         weight=1.0,
@@ -76,6 +78,7 @@ When making predictions, always cite specific statistical evidence."""
     AnalystRole(
         id="betting_expert",
         name="投注专家",
+        name_en="Betting Expert",
         focus_areas=["market odds", "line movement", "public vs sharp money", "value spots"],
         cognitive_bias="逆向思维，倾向于反对公众共识",
         weight=1.0,
@@ -94,6 +97,7 @@ When making predictions, always reference market dynamics and value."""
     AnalystRole(
         id="injury_analyst",
         name="伤病分析师",
+        name_en="Injury Analyst",
         focus_areas=["injury reports", "player availability", "backup depth", "minute redistributions"],
         cognitive_bias="高估伤病影响，对任何伤病都过度悲观",
         weight=1.0,
@@ -113,6 +117,7 @@ When making predictions, always discuss health and availability."""
     AnalystRole(
         id="tactical_analyst",
         name="战术分析师",
+        name_en="Tactical Analyst",
         focus_areas=["matchup advantages", "play styles", "defensive schemes", "coaching adjustments"],
         cognitive_bias="过度解读战术对位，忽视整体实力差距",
         weight=1.0,
@@ -132,6 +137,7 @@ When making predictions, always analyze specific matchups."""
     AnalystRole(
         id="momentum_analyst",
         name="状态分析师",
+        name_en="Momentum Analyst",
         focus_areas=["recent form", "win/loss streaks", "schedule difficulty", "clutch performance"],
         cognitive_bias="严重近因偏差，过度放大近期表现",
         weight=1.0,
@@ -152,6 +158,7 @@ When making predictions, always emphasize recent form."""
     AnalystRole(
         id="home_court_analyst",
         name="主场分析师",
+        name_en="Home Court Analyst",
         focus_areas=["home/away splits", "travel impact", "altitude effects", "crowd factor"],
         cognitive_bias="高估主场优势，认为主场是最关键因素",
         weight=1.0,
@@ -175,6 +182,7 @@ When making predictions, always highlight home/away dynamics."""
 SMART_MONEY_ROLE = AnalystRole(
     id="smart_money_analyst",
     name="聪明钱分析师",
+    name_en="Smart Money Analyst",
     focus_areas=["on-chain smart money positions", "position sizing", "entry timing", "hedge detection"],
     cognitive_bias="过度信赖链上钱包数据，可能忽略聪明钱尚未获知的信息（如临赛前伤病变动）",
     weight=1.0,

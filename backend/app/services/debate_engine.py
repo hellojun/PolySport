@@ -106,10 +106,11 @@ class DebateEngine:
             round_result = DebateRound(round_num=round_num)
 
             if progress_callback:
-                progress_callback(
-                    f"Round {round_num}/{self.num_rounds} - 6位分析师并行分析中...",
-                    completed_calls / total_calls
-                )
+                analyst_count = len(self.roles)
+                msg = (f"Round {round_num}/{self.num_rounds} - {analyst_count}位分析师并行分析中..."
+                       if lang == "zh"
+                       else f"Round {round_num}/{self.num_rounds} - {analyst_count} analysts running...")
+                progress_callback(msg, completed_calls / total_calls)
 
             # 同一轮内的分析师并行调用
             futures = {}
@@ -145,10 +146,11 @@ class DebateEngine:
                         continue
 
                     if progress_callback:
-                        progress_callback(
-                            f"Round {round_num} - {role.name} 完成 ({completed_calls}/{total_calls})",
-                            completed_calls / total_calls
-                        )
+                        rname = role.name if lang == "zh" else role.name_en
+                        done_msg = (f"Round {round_num} - {rname} 完成 ({completed_calls}/{total_calls})"
+                                    if lang == "zh"
+                                    else f"Round {round_num} - {rname} done ({completed_calls}/{total_calls})")
+                        progress_callback(done_msg, completed_calls / total_calls)
 
             # 按 analyst_id 排序保证结果顺序一致
             round_result.predictions.sort(key=lambda p: p.analyst_id)
