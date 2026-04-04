@@ -171,16 +171,14 @@ def _do_load_prediction_pg(matchup_id: str) -> Optional[dict]:
 def _compute_hit_status(prediction: dict, game_result: dict) -> dict:
     """
     计算预测命中状态。
-    prediction 的 betting_card 是主队视角:
-      - moneyline: pick=主队缩写, model_probability=主队胜概率
-      - spread: pick="主队 +/-线", opponent_pick="客队 +/-线"
-      - total: pick="OVER 线", opponent_pick="UNDER 线"
+    betting_card 是客队视角 (左=客队, 右=主队):
+      - moneyline: pick=客队缩写, model_probability=客队胜概率
+      - spread: pick="客队 +/-线", model_probability=客队 cover 概率
+      - total: pick="OVER 线", model_probability=OVER 概率
     """
     betting_card = prediction.get('betting_card', [])
     home_score = game_result.get('home_score')
     away_score = game_result.get('away_score')
-    home_abbr = game_result.get('home_abbr', '')
-    away_abbr = game_result.get('away_abbr', '')
 
     if home_score is None or away_score is None:
         return {"moneyline_hit": None, "spread_hit": None, "total_hit": None,
@@ -197,39 +195,38 @@ def _compute_hit_status(prediction: dict, game_result: dict) -> dict:
 
         if market == 'moneyline':
             total_markets += 1
-            # 模型选主队胜概率 > 0.5 → pick 主队, 否则 pick 客队
-            model_picks_home = model_prob > 0.5
-            home_won = home_score > away_score
+            # model_probability = 客队胜概率; > 0.5 → 选客队
+            model_picks_away = model_prob > 0.5
+            away_won = away_score > home_score
             if home_score == away_score:
-                result["moneyline_hit"] = None  # 平局(NBA极少)
+                result["moneyline_hit"] = "push"
+                hit_count += 1
             else:
-                result["moneyline_hit"] = model_picks_home == home_won
+                result["moneyline_hit"] = model_picks_away == away_won
                 if result["moneyline_hit"]:
                     hit_count += 1
 
         elif market == 'spread':
             total_markets += 1
-            # spread pick 格式: "ORL +3.5" 或 "ORL -3.5"
-            # model_probability > 0.5 → 模型选主队 cover
-            # 实际: home_score + spread_line > away_score → 主队 cover
+            # spread pick 格式: "客队 +3.5" 或 "客队 -3.5"
+            # model_probability = 客队 cover 概率
             import re as _re
             m = _re.search(r'([+-]?\d+\.?\d*)', pick)
             if m:
-                spread_line = float(m.group(1))
-                home_margin = home_score - away_score
-                # 主队让分后的 margin
-                covered = (home_margin + spread_line) > 0
-                model_picks_home_cover = model_prob > 0.5
-                if (home_margin + spread_line) == 0:
-                    result["spread_hit"] = None  # push
+                spread_line = float(m.group(1))  # 客队视角的让分线
+                away_margin = away_score - home_score
+                covered = (away_margin + spread_line) > 0
+                model_picks_cover = model_prob > 0.5
+                if (away_margin + spread_line) == 0:
+                    result["spread_hit"] = "push"
+                    hit_count += 1
                 else:
-                    result["spread_hit"] = model_picks_home_cover == covered
+                    result["spread_hit"] = model_picks_cover == covered
                     if result["spread_hit"]:
                         hit_count += 1
 
         elif market == 'total':
             total_markets += 1
-            # pick 格式: "OVER 220.5"
             import re as _re
             m = _re.search(r'(\d+\.?\d*)', pick)
             if m:
@@ -238,7 +235,8 @@ def _compute_hit_status(prediction: dict, game_result: dict) -> dict:
                 is_over = actual_total > total_line
                 model_picks_over = model_prob > 0.5
                 if actual_total == total_line:
-                    result["total_hit"] = None  # push
+                    result["total_hit"] = "push"
+                    hit_count += 1
                 else:
                     result["total_hit"] = model_picks_over == is_over
                     if result["total_hit"]:
@@ -270,15 +268,15 @@ def get_public_stats():
             continue
         if hs.get('moneyline_hit') is not None:
             ml_total += 1
-            if hs['moneyline_hit']:
+            if hs['moneyline_hit'] == "push" or hs['moneyline_hit'] is True:
                 ml_hits += 1
         if hs.get('spread_hit') is not None:
             sp_total += 1
-            if hs['spread_hit']:
+            if hs['spread_hit'] == "push" or hs['spread_hit'] is True:
                 sp_hits += 1
         if hs.get('total_hit') is not None:
             tt_total += 1
-            if hs['total_hit']:
+            if hs['total_hit'] == "push" or hs['total_hit'] is True:
                 tt_hits += 1
 
     total_with_result = max(ml_total, sp_total, tt_total)

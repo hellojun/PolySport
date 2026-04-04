@@ -145,47 +145,51 @@ class PredictionGenerator:
         home_abbr: str,
         away_abbr: str,
     ) -> List[BettingAdvice]:
-        """固定主队视角聚合三个市场"""
+        """客队 @ 主队视角聚合三个市场（左=客队, 右=主队, 与标题一致）"""
         mo = market_odds or {}
         cards = []
 
-        # --- Moneyline (主队视角) ---
+        # --- Moneyline (客队在左) ---
         home_prob = self._compute_home_probability(
             predictions, "moneyline_pick", "moneyline_confidence", home_abbr
         )
+        away_prob = 1 - home_prob
         market_home = mo.get("moneyline_home")
-        ml_edge = (home_prob - market_home) if market_home is not None else None
+        market_away = (1 - market_home) if market_home is not None else None
+        ml_edge = (away_prob - market_away) if market_away is not None else None
         cards.append(BettingAdvice(
             market="moneyline",
-            pick=home_abbr,
-            model_probability=home_prob,
-            market_probability=market_home,
+            pick=away_abbr,
+            model_probability=away_prob,
+            market_probability=market_away,
             edge=ml_edge,
             recommendation=_classify_recommendation(ml_edge),
-            confidence=home_prob,
-            opponent_pick=away_abbr,
-            opponent_probability=1 - home_prob,
+            confidence=away_prob,
+            opponent_pick=home_abbr,
+            opponent_probability=home_prob,
         ))
 
-        # --- Spread (主队视角) ---
+        # --- Spread (客队在左) ---
         spread_line = mo.get("spread_line")
         home_spread_prob = self._compute_home_probability(
             predictions, "spread_pick", "spread_confidence", home_abbr
         )
+        away_spread_prob = 1 - home_spread_prob
         market_spread = mo.get("spread_home")
-        sp_edge = (home_spread_prob - market_spread) if market_spread is not None else None
-        home_label = f"{home_abbr} {spread_line:+.1f}" if spread_line is not None else home_abbr
+        market_away_spread = (1 - market_spread) if market_spread is not None else None
+        sp_edge = (away_spread_prob - market_away_spread) if market_away_spread is not None else None
         away_label = f"{away_abbr} {-spread_line:+.1f}" if spread_line is not None else away_abbr
+        home_label = f"{home_abbr} {spread_line:+.1f}" if spread_line is not None else home_abbr
         cards.append(BettingAdvice(
             market="spread",
-            pick=home_label,
-            model_probability=home_spread_prob,
-            market_probability=market_spread,
+            pick=away_label,
+            model_probability=away_spread_prob,
+            market_probability=market_away_spread,
             edge=sp_edge,
             recommendation=_classify_recommendation(sp_edge),
-            confidence=home_spread_prob,
-            opponent_pick=away_label,
-            opponent_probability=1 - home_spread_prob,
+            confidence=away_spread_prob,
+            opponent_pick=home_label,
+            opponent_probability=home_spread_prob,
         ))
 
         # --- Total (OVER/UNDER 视角, 不需要主客区分) ---
