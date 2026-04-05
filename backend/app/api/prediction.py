@@ -247,6 +247,26 @@ def _compute_hit_status(prediction: dict, game_result: dict) -> dict:
     return result
 
 
+def _normalize_hit_status(hs: dict) -> dict:
+    """
+    根据个别市场的 hit 值重新计算 hit_count/total_markets。
+    修复旧缓存中 push 未计入 hit_count 的问题。
+    """
+    if not hs:
+        return hs
+    hit_count = 0
+    total_markets = 0
+    for key in ("moneyline_hit", "spread_hit", "total_hit"):
+        val = hs.get(key)
+        if val is not None:
+            total_markets += 1
+            if val is True or val == "push":
+                hit_count += 1
+    hs["hit_count"] = hit_count
+    hs["total_markets"] = total_markets
+    return hs
+
+
 @prediction_bp.route('/stats', methods=['GET'])
 def get_public_stats():
     """公开端点：返回预测命中率统计"""
@@ -302,9 +322,11 @@ def fetch_game_result(matchup_id):
     if not prediction:
         return jsonify({"success": False, "error": "预测结果不存在"}), 404
 
-    # 如果已有 Final 的缓存结果，直接返回
+    # 如果已有 Final 的缓存结果，归一化 hit_status 后返回
     existing = prediction.get('game_result')
     if existing and existing.get('game_status_id') == 3:
+        if existing.get('hit_status'):
+            _normalize_hit_status(existing['hit_status'])
         return jsonify({"success": True, "game_result": existing})
 
     # 从 prediction 数据或 task metadata 提取球队和日期
@@ -413,11 +435,14 @@ def get_prediction_history():
         if pred and pt.status == "completed" and pred.data:
             gr = pred.data.get("game_result")
             if gr:
+                hs = gr.get("hit_status")
+                if hs:
+                    _normalize_hit_status(hs)
                 item["game_result"] = {
                     "home_score": gr.get("home_score"),
                     "away_score": gr.get("away_score"),
                     "game_status_id": gr.get("game_status_id"),
-                    "hit_status": gr.get("hit_status"),
+                    "hit_status": hs,
                 }
         predictions.append(item)
 
@@ -675,6 +700,11 @@ def get_prediction_result(matchup_id):
         prediction.pop("debate_log", None)
     elif level == "L2":
         prediction.pop("debate_log", None)
+
+    # 归一化 game_result.hit_status（修复旧缓存数据）
+    gr = prediction.get("game_result")
+    if gr and gr.get("hit_status"):
+        _normalize_hit_status(gr["hit_status"])
 
     return jsonify({
         "success": True,
