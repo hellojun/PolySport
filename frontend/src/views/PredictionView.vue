@@ -1,6 +1,9 @@
 <template>
   <div class="prediction-container">
     <div class="main-content">
+      <!-- ===== LOADING 状态（从历史/恢复任务跳转时，避免闪烁） ===== -->
+      <div v-if="viewState === 'loading'" class="loading-text">{{ t('result.loading') }}</div>
+
       <!-- ===== SELECT 状态（日期 + 比赛列表合并） ===== -->
       <section v-if="viewState === 'select'" class="input-section">
         <div class="section-header">
@@ -322,8 +325,10 @@ import StepCard from '../components/StepCard.vue'
 const route = useRoute()
 const { t, locale } = useI18n()
 
-// ---- State machine: select | progress | result ----
-const viewState = ref('select')
+// ---- State machine: select | loading | progress | result ----
+// 如果 URL 带 matchup_id 或有活跃任务，初始状态设为 loading 避免闪烁
+const _initState = route.query.matchup_id || localStorage.getItem('activeTask') ? 'loading' : 'select'
+const viewState = ref(_initState)
 
 // Date select — default to tomorrow in US Eastern time
 function getTomorrowET() {
@@ -728,7 +733,8 @@ onMounted(async () => {
       const l2res = await getPredictionResult(qMatchupId, 'L2')
       l2Data.value = l2res.prediction
     } catch {
-      // 结果不存在，回到默认状态
+      // 结果不存在，回到选赛页
+      viewState.value = 'select'
     }
     return
   }
@@ -750,8 +756,9 @@ onMounted(async () => {
         activeGameTime.value = saved.gameTime || ''
         await loadResult()
       } else if (task.status === 'failed') {
-        // 任务已失败，清除并提示
+        // 任务已失败，清除并回到选赛页
         _clearActiveTask()
+        viewState.value = 'select'
       } else {
         // 任务仍在运行，恢复进度页和轮询
         taskId.value = saved.taskId
@@ -770,11 +777,13 @@ onMounted(async () => {
       }
     } catch {
       _clearActiveTask()
+      viewState.value = 'select'
     }
   }
 
   // 3. Auto-fetch events for the default date when landing fresh
-  if (viewState.value === 'select' && !eventsFetched.value) {
+  if ((viewState.value === 'select' || viewState.value === 'loading') && !eventsFetched.value) {
+    viewState.value = 'select'
     fetchEvents()
   }
 })
