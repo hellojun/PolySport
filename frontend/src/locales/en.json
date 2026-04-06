@@ -48,7 +48,9 @@
     "reset_password": "Reset Password",
     "resetting": "Resetting...",
     "reset_success": "Password reset successful, please login",
-    "reset_failed": "Password reset failed"
+    "reset_failed": "Password reset failed",
+    "or": "OR",
+    "google_login_failed": "Google login failed"
   },
   "date_select": {
     "title": "NBA Game Prediction",

@@ -4,6 +4,7 @@ POST /api/auth/send-code     - 发送验证码
 POST /api/auth/verify-code   - 验证验证码
 POST /api/auth/register      - 注册
 POST /api/auth/login         - 登录
+POST /api/auth/google        - Google 一键登录
 POST /api/auth/refresh       - 刷新 access token
 POST /api/auth/logout        - 登出
 GET  /api/auth/me            - 获取当前用户信息
@@ -209,6 +210,88 @@ def login():
     if not user or not user.check_password(password):
         return jsonify({"success": False, "error": "邮箱或密码错误"}), 401
 
+    access_token = create_access_token(
+        identity=str(user.id),
+        expires_delta=Config.JWT_ACCESS_TOKEN_EXPIRES,
+    )
+    refresh_token = create_refresh_token(
+        identity=str(user.id),
+        expires_delta=Config.JWT_REFRESH_TOKEN_EXPIRES,
+    )
+
+    return jsonify({
+        "success": True,
+        "access_token": access_token,
+        "refresh_token": refresh_token,
+        "user": user.to_dict(),
+    })
+
+
+@auth_bp.route('/google', methods=['POST'])
+def google_login():
+    """Google 一键登录 / 注册"""
+    data = request.get_json()
+    if not data or not data.get('credential'):
+        return jsonify({"success": False, "error": "缺少 credential"}), 400
+
+    client_id = Config.GOOGLE_CLIENT_ID
+    if not client_id:
+        return jsonify({"success": False, "error": "Google 登录未配置"}), 500
+
+    # 验证 Google ID token
+    try:
+        from google.oauth2 import id_token as google_id_token
+        from google.auth.transport import requests as google_requests
+
+        idinfo = google_id_token.verify_oauth2_token(
+            data['credential'],
+            google_requests.Request(),
+            client_id,
+        )
+    except ValueError:
+        return jsonify({"success": False, "error": "Invalid Google token"}), 401
+
+    google_id = idinfo['sub']
+    email = idinfo.get('email', '').lower()
+    email_verified = idinfo.get('email_verified', False)
+
+    if not email or not email_verified:
+        return jsonify({"success": False, "error": "Google 账号邮箱未验证"}), 401
+
+    # 查找或创建用户
+    user = User.query.filter_by(google_id=google_id).first()
+
+    if not user:
+        # google_id 不存在，尝试用 email 匹配已有账号
+        user = User.query.filter_by(email=email).first()
+        if user:
+            # 关联 google_id 到现有账号
+            user.google_id = google_id
+            db.session.commit()
+        else:
+            # 全新用户
+            signup_bonus = Decimal('4')
+            user = User(
+                email=email,
+                google_id=google_id,
+                is_verified=True,
+                token_balance=signup_bonus,
+            )
+            db.session.add(user)
+            db.session.flush()
+
+            bonus_tx = TokenTransaction(
+                user_id=user.id,
+                type='signup_bonus',
+                amount=signup_bonus,
+                balance=signup_bonus,
+                reference='google_signup',
+            )
+            db.session.add(bonus_tx)
+            db.session.commit()
+            logger.info(f"Google 新用户注册: {email}")
+
+    # 签发 JWT
     access_token = create_access_token(
         identity=str(user.id),
         expires_delta=Config.JWT_ACCESS_TOKEN_EXPIRES,

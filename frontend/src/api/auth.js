@@ -39,3 +39,7 @@ export const getMe = () => {
 export const resetPassword = (email, password) => {
   return service.post('/api/auth/reset-password', { email, password })
 }
+
+export const googleLogin = (credential) => {
+  return service.post('/api/auth/google', { credential })
+}

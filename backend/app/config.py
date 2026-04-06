@@ -95,6 +95,9 @@ class Config:
     # 预测结果存储
     PREDICTION_RESULTS_DIR = os.path.join(os.path.dirname(__file__), '../uploads/predictions')
 
+    # Google OAuth
+    GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+
     # Polygon 链上验证
     POLYGON_RPC_URL = os.environ.get('POLYGON_RPC_URL', 'https://polygon-bor-rpc.publicnode.com')
     POLYGON_USDT_CONTRACT = os.environ.get('POLYGON_USDT_CONTRACT', '0xc2132D05D31c914a87C6611C10748AEb04B58e8F')

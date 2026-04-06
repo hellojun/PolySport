@@ -24,6 +24,10 @@
 
       <!-- ===== 登录表单 ===== -->
       <form v-if="authModal.tab === 'login'" @submit.prevent="handleLogin" class="auth-form">
+        <div v-show="googleReady" ref="googleBtnLoginRef" class="google-btn-wrapper"></div>
+        <div v-show="googleReady" class="or-divider">
+          <span>{{ t('auth.or') }}</span>
+        </div>
         <div class="form-group">
           <label>{{ t('auth.email') }}</label>
           <input
@@ -55,6 +59,10 @@
 
       <!-- ===== 注册表单 ===== -->
       <div v-if="authModal.tab === 'register'" class="auth-form">
+        <div v-show="googleReady" ref="googleBtnRegisterRef" class="google-btn-wrapper"></div>
+        <div v-show="googleReady" class="or-divider">
+          <span>{{ t('auth.or') }}</span>
+        </div>
         <template v-if="regStep === 1">
           <div class="form-group">
             <label>{{ t('auth.email') }}</label>
@@ -150,12 +158,82 @@
 </template>
 
 <script setup>
-import { ref, watch, onBeforeUnmount } from 'vue'
+import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { login, sendVerificationCode, verifyCode, register, resetPassword } from '../api/auth'
+import { login, sendVerificationCode, verifyCode, register, resetPassword, googleLogin } from '../api/auth'
 import { setAuth, authModal, closeAuthModal } from '../stores/auth'
 
 const { t } = useI18n()
+
+// ---- Google Sign-In ----
+const googleReady = ref(false)
+const googleBtnLoginRef = ref(null)
+const googleBtnRegisterRef = ref(null)
+let googleInitialized = false
+
+function renderGoogleButton(container) {
+  if (!container || !window.google?.accounts?.id) return
+  container.innerHTML = ''
+  window.google.accounts.id.renderButton(container, {
+    theme: 'outline',
+    shape: 'rectangular',
+    size: 'large',
+    width: 336,
+    text: 'signin_with',
+  })
+}
+
+function initGoogleSignIn() {
+  if (!window.google?.accounts?.id) return
+  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+  if (!clientId) return
+
+  if (!googleInitialized) {
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: handleGoogleCallback,
+    })
+    googleInitialized = true
+  }
+  googleReady.value = true
+  nextTick(() => {
+    renderGoogleButton(googleBtnLoginRef.value)
+    renderGoogleButton(googleBtnRegisterRef.value)
+  })
+}
+
+async function handleGoogleCallback(response) {
+  errorMsg.value = ''
+  loading.value = true
+  try {
+    const res = await googleLogin(response.credential)
+    setAuth(res)
+    closeAuthModal()
+  } catch (e) {
+    errorMsg.value = e.message || t('auth.google_login_failed')
+  } finally {
+    loading.value = false
+  }
+}
+
+// 等待 Google SDK 加载完毕
+function waitForGoogleSDK() {
+  if (window.google?.accounts?.id) {
+    initGoogleSignIn()
+    return
+  }
+  // SDK 尚未加载，轮询等待（最多 5s）
+  let attempts = 0
+  const timer = setInterval(() => {
+    attempts++
+    if (window.google?.accounts?.id) {
+      clearInterval(timer)
+      initGoogleSignIn()
+    } else if (attempts >= 50) {
+      clearInterval(timer)
+    }
+  }, 100)
+}
 
 // ---- Shared ----
 const errorMsg = ref('')
@@ -320,9 +398,11 @@ function switchTab(tab) {
   forgotStep.value = 1
 }
 
-// 弹窗关闭时重置所有状态
+// 弹窗关闭时重置所有状态；打开时初始化 Google 按钮
 watch(() => authModal.visible, (v) => {
-  if (!v) {
+  if (v) {
+    nextTick(() => waitForGoogleSDK())
+  } else {
     regStep.value = 1
     forgotStep.value = 1
     errorMsg.value = ''
@@ -336,6 +416,16 @@ watch(() => authModal.visible, (v) => {
     forgotCode.value = ''
     forgotPassword.value = ''
     forgotConfirmPassword.value = ''
+  }
+})
+
+// Tab 切换时重新渲染 Google 按钮
+watch(() => authModal.tab, () => {
+  if (authModal.visible && googleReady.value) {
+    nextTick(() => {
+      renderGoogleButton(googleBtnLoginRef.value)
+      renderGoogleButton(googleBtnRegisterRef.value)
+    })
   }
 })
 
@@ -430,4 +520,30 @@ onBeforeUnmount(() => {
   color: var(--gray-text); text-decoration: none; transition: color 0.2s;
 }
 .auth-link-row a:hover { color: var(--orange); }
+
+.google-btn-wrapper {
+  display: flex;
+  justify-content: center;
+}
+
+.or-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.or-divider::before,
+.or-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.or-divider span {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--gray-text);
+  background: var(--white);
+  padding: 0 4px;
+  white-space: nowrap;
+}
 </style>
