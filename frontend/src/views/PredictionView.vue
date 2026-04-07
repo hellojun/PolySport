@@ -445,8 +445,7 @@ async function selectGame(event) {
     _saveActiveTask()
     startPolling()
   } catch (err) {
-    const errData = err?.response?.data
-    if (errData?.error === '额度不足') {
+    if (err.message === '额度不足' || err?.response?.data?.error === '额度不足') {
       showQuotaAlert.value = true
     } else {
       submitError.value = err.message || t('game_select.submit_error')
