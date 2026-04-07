@@ -29,10 +29,15 @@ class User(db.Model):
         return check_password_hash(self.password_hash, password)
 
     def to_dict(self) -> dict:
+        from ..config import Config
+        perms = []
+        if not Config.TRACK_RECORD_WHITELIST or (self.email or '').lower() in Config.TRACK_RECORD_WHITELIST:
+            perms.append('track_record')
         return {
             "id": self.id,
             "email": self.email,
             "is_verified": self.is_verified,
             "token_balance": float(self.token_balance or 0),
             "created_at": self.created_at.isoformat(),
+            "permissions": perms,
         }

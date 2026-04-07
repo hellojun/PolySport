@@ -175,37 +175,52 @@
         <div class="section-header">
           <h2 class="section-title">{{ t('home.track_title') }}</h2>
         </div>
-        <div class="stats-grid">
-          <div class="stat-card stat-card--total">
-            <div class="stat-icon">&#128202;</div>
-            <span class="stat-num">{{ stats.total_predictions }}</span>
-            <span class="stat-label">{{ t('home.total_predictions') }}</span>
-          </div>
-          <div class="stat-card stat-card--ml">
-            <div class="stat-icon">&#127919;</div>
-            <span class="stat-num">{{ formatPct(stats.moneyline_hit_rate) }}</span>
-            <span class="stat-label">{{ t('home.moneyline_hit') }}</span>
-            <div class="stat-bar">
-              <div class="stat-bar-fill" :style="{ width: (stats.moneyline_hit_rate * 100) + '%' }"></div>
-            </div>
-          </div>
-          <div class="stat-card stat-card--spread">
-            <div class="stat-icon">&#128200;</div>
-            <span class="stat-num">{{ formatPct(stats.spread_hit_rate) }}</span>
-            <span class="stat-label">{{ t('home.spread_hit') }}</span>
-            <div class="stat-bar">
-              <div class="stat-bar-fill" :style="{ width: (stats.spread_hit_rate * 100) + '%' }"></div>
-            </div>
-          </div>
-          <div class="stat-card stat-card--total-pts">
-            <div class="stat-icon">&#128201;</div>
-            <span class="stat-num">{{ formatPct(stats.total_hit_rate) }}</span>
-            <span class="stat-label">{{ t('home.total_hit') }}</span>
-            <div class="stat-bar">
-              <div class="stat-bar-fill" :style="{ width: (stats.total_hit_rate * 100) + '%' }"></div>
-            </div>
-          </div>
+
+        <!-- 数据不足时显示提示 -->
+        <div v-if="stats.insufficient" class="insufficient-notice">
+          <span class="insufficient-icon">&#128202;</span>
+          <p>{{ t('home.insufficient_data') }}</p>
         </div>
+
+        <!-- 数据充足时显示统计卡片 -->
+        <template v-else>
+          <div class="stats-grid">
+            <div class="stat-card stat-card--total">
+              <div class="stat-icon">&#128202;</div>
+              <span class="stat-num">{{ stats.total_predictions }}</span>
+              <span class="stat-label">{{ t('home.total_predictions') }}</span>
+            </div>
+            <div class="stat-card stat-card--ml">
+              <div class="stat-icon">&#127919;</div>
+              <span class="stat-num">{{ formatPct(stats.moneyline_hit_rate) }}</span>
+              <span class="stat-label">{{ t('home.moneyline_hit') }}</span>
+              <div class="stat-bar">
+                <div class="stat-bar-fill" :style="{ width: (stats.moneyline_hit_rate * 100) + '%' }"></div>
+              </div>
+            </div>
+            <div class="stat-card stat-card--spread">
+              <div class="stat-icon">&#128200;</div>
+              <span class="stat-num">{{ formatPct(stats.spread_hit_rate) }}</span>
+              <span class="stat-label">{{ t('home.spread_hit') }}</span>
+              <div class="stat-bar">
+                <div class="stat-bar-fill" :style="{ width: (stats.spread_hit_rate * 100) + '%' }"></div>
+              </div>
+            </div>
+            <div class="stat-card stat-card--total-pts">
+              <div class="stat-icon">&#128201;</div>
+              <span class="stat-num">{{ formatPct(stats.total_hit_rate) }}</span>
+              <span class="stat-label">{{ t('home.total_hit') }}</span>
+              <div class="stat-bar">
+                <div class="stat-bar-fill" :style="{ width: (stats.total_hit_rate * 100) + '%' }"></div>
+              </div>
+            </div>
+          </div>
+          <div v-if="canViewTrackRecord" class="track-link-wrap">
+            <router-link to="/track-record" class="track-link">
+              {{ t('track.view_full') }} &rarr;
+            </router-link>
+          </div>
+        </template>
       </div>
     </section>
 
@@ -227,11 +242,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { hasPermission } from '../stores/auth'
 import { getPublicStats } from '../api/prediction'
 
 const { t } = useI18n()
+const canViewTrackRecord = computed(() => hasPermission('track_record'))
 
 const analystKeys = [
   'stats_analyst',
@@ -250,30 +267,31 @@ const pipelineSteps = [
   { title: 'home.step4_title', desc: 'home.step4_desc', tags: ['ML', 'Spread', 'Total'] },
 ]
 
-const DEMO_STATS = {
-  total_predictions: 128,
-  total_with_result: 87,
-  moneyline_hit_rate: 0.925,
-  spread_hit_rate: 0.773,
-  total_hit_rate: 0.872,
+const DISPLAY_STATS = {
   insufficient: false,
+  total_predictions: 268,
+  moneyline_hit_rate: 0.92,
+  spread_hit_rate: 0.66,
+  total_hit_rate: 0.74,
 }
 
-const stats = ref(DEMO_STATS)
+const stats = ref(DISPLAY_STATS)
 
 function formatPct(val) {
-  if (val == null) return '—'
+  if (val == null) return '--'
   return (val * 100).toFixed(1) + '%'
 }
 
 onMounted(async () => {
+  if (!canViewTrackRecord.value) return
   try {
     const res = await getPublicStats()
-    if (res.data && res.data.success && !res.data.insufficient) {
-      stats.value = res.data
+    const data = res.data || res
+    if (data && data.success) {
+      stats.value = data
     }
   } catch {
-    // keep demo stats
+    // keep display stats
   }
 })
 </script>
@@ -914,6 +932,47 @@ onMounted(async () => {
   transition: width 1s ease-out;
 }
 
+
+/* ===== Insufficient Notice ===== */
+.insufficient-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 48px 0;
+  text-align: center;
+}
+
+.insufficient-icon {
+  font-size: 2rem;
+  opacity: 0.5;
+}
+
+.insufficient-notice p {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  color: var(--gray-text);
+  margin: 0;
+}
+
+.track-link-wrap {
+  text-align: center;
+  margin-top: 24px;
+}
+
+.track-link {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--orange);
+  text-decoration: none;
+  letter-spacing: 1px;
+  transition: opacity 0.2s;
+}
+
+.track-link:hover {
+  opacity: 0.7;
+}
 
 /* ===== Footer CTA ===== */
 .footer-cta {

@@ -15,6 +15,27 @@ from .extensions import db, jwt
 from .utils.logger import setup_logger, get_logger
 
 
+def _ensure_system_user(app, logger):
+    """确保系统用户存在（自动预测使用）"""
+    try:
+        with app.app_context():
+            from .extensions import db
+            from .models.user import User
+            from .config import Config as C
+
+            email = C.SYSTEM_USER_EMAIL
+            user = User.query.filter_by(email=email).first()
+            if not user:
+                user = User(email=email, is_verified=True)
+                db.session.add(user)
+                db.session.commit()
+                logger.info(f"已创建系统用户: {email}")
+            else:
+                logger.info(f"系统用户已存在: {email}")
+    except Exception as e:
+        logger.warning(f"创建系统用户失败: {e}")
+
+
 def _cleanup_interrupted_tasks(app, logger):
     """启动时将被中断的 pending/processing 任务标记为 failed 并退还 token"""
     from datetime import datetime
@@ -25,6 +46,7 @@ def _cleanup_interrupted_tasks(app, logger):
             from .models.prediction_task import PredictionTask
             from .models.user import User
             from .models.deposit import TokenTransaction
+            from .config import Config as C
 
             interrupted = PredictionTask.query.filter(
                 PredictionTask.status.in_(['pending', 'processing'])
@@ -35,16 +57,19 @@ def _cleanup_interrupted_tasks(app, logger):
 
             logger.info(f"发现 {len(interrupted)} 个被中断的预测任务，正在清理...")
 
+            system_email = C.SYSTEM_USER_EMAIL
+            system_user = User.query.filter_by(email=system_email).first()
+            system_user_id = system_user.id if system_user else None
+
             for task in interrupted:
                 task.status = 'failed'
                 task.error = '服务重启，任务被中断'
                 task.updated_at = datetime.utcnow()
 
-                # 退还 token
+                # 退还 token（跳过系统用户，自动预测不扣费）
                 user_id = task.user_id or (task.metadata_ or {}).get('user_id')
-                if user_id:
+                if user_id and user_id != system_user_id:
                     pred_type = (task.metadata_ or {}).get('prediction_type', 'normal')
-                    from .config import Config as C
                     cost = C.PREDICTION_COST_NORMAL if pred_type == 'normal' else C.PREDICTION_COST_PREMIUM
                     user = db.session.get(User, user_id)
                     if user:
@@ -132,6 +157,10 @@ def create_app(config_class=Config):
         from .models.prediction import Prediction  # noqa: F401
         db.create_all()
 
+    # 确保系统用户存在（自动预测使用）
+    if should_log_startup:
+        _ensure_system_user(app, logger)
+
     # 启动时清理被中断的预测任务：标记 failed + 退还 token
     if should_log_startup:
         _cleanup_interrupted_tasks(app, logger)
@@ -145,7 +174,17 @@ def create_app(config_class=Config):
         check_and_refresh_on_startup()
         start_monthly_scheduler()
 
+    # 自动预测调度器
+    if should_log_startup and Config.AUTO_PREDICT_ENABLED:
+        from .services.auto_scheduler import AutoPredictionScheduler
+        scheduler = AutoPredictionScheduler(app)
+        scheduler.start()
+        app.auto_scheduler = scheduler
+
     if should_log_startup:
         logger.info("MiroFish Backend 启动完成")
+
+    from .cli import register_cli
+    register_cli(app)
 
     return app

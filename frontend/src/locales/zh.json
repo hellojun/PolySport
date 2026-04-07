@@ -1,6 +1,7 @@
 {
   "nav": {
     "predict": "预测",
+    "track_record": "战绩",
     "history": "历史",
     "login": "登录",
     "logout": "登出",
@@ -273,5 +274,21 @@
       "name": "聪明钱分析师",
       "desc": "追踪 Polymarket 链上聪明钱持仓方向，分析建仓时间与仓位大小以判断知情资金的信心程度"
     }
+  },
+  "track": {
+    "title": "平台战绩",
+    "desc": "平台预测表现 — 基于 NBA 比赛实际结果验证",
+    "auto_only_note": "仅统计系统赛前自动预测",
+    "trend_title": "每日命中率趋势",
+    "records_title": "近期记录",
+    "date": "日期",
+    "matchup": "对阵",
+    "score": "比分",
+    "hits": "命中",
+    "hit": "命中",
+    "miss": "未中",
+    "push": "平推",
+    "no_data": "数据积累中，敬请期待",
+    "view_full": "查看完整战绩"
   }
 }

@@ -6,6 +6,7 @@
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
 
 from ..config import Config
 from ..utils.logger import get_logger
@@ -35,7 +36,8 @@ def send_verification_code(to_email: str, code: str):
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = Config.SMTP_SENDER or Config.SMTP_USERNAME
+    sender_addr = Config.SMTP_SENDER or Config.SMTP_USERNAME
+    msg["From"] = formataddr(("PolySport", sender_addr))
     msg["To"] = to_email
     msg.attach(MIMEText(html, "html"))
 

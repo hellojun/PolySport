@@ -1,6 +1,7 @@
 {
   "nav": {
     "predict": "Predict",
+    "track_record": "Track Record",
     "history": "History",
     "login": "Login",
     "logout": "Logout",
@@ -273,5 +274,21 @@
       "name": "Smart Money Analyst",
       "desc": "Tracks on-chain smart money positions on Polymarket, analyzes entry timing and position sizing to gauge informed conviction"
     }
+  },
+  "track": {
+    "title": "TRACK RECORD",
+    "desc": "Platform prediction performance — verified with actual NBA game results",
+    "auto_only_note": "Only includes automated pre-game predictions",
+    "trend_title": "DAILY HIT RATE TREND",
+    "records_title": "RECENT RECORDS",
+    "date": "Date",
+    "matchup": "Matchup",
+    "score": "Score",
+    "hits": "Hits",
+    "hit": "HIT",
+    "miss": "MISS",
+    "push": "PUSH",
+    "no_data": "Building track record, stay tuned",
+    "view_full": "View Full Track Record"
   }
 }

@@ -68,3 +68,10 @@ export const deletePrediction = (taskId) => {
 export const getPublicStats = () => {
   return service.get('/api/prediction/stats')
 }
+
+/**
+ * 获取完整战绩数据（无需登录）
+ */
+export const getTrackRecord = (params = {}) => {
+  return service.get('/api/prediction/track-record', { params })
+}

@@ -108,6 +108,25 @@ class Config:
     PREDICTION_COST_NORMAL = 2
     PREDICTION_COST_PREMIUM = 4
 
+    # 自动预测
+    AUTO_PREDICT_ENABLED = os.environ.get('AUTO_PREDICT_ENABLED', 'true').lower() == 'true'
+    AUTO_PREDICT_MINUTES_BEFORE = int(os.environ.get('AUTO_PREDICT_MINUTES_BEFORE', '30'))
+    AUTO_PREDICT_TYPE = 'premium'
+    AUTO_PREDICT_LANG = 'en'
+    AUTO_PREDICT_MAX_CONCURRENT = int(os.environ.get('AUTO_PREDICT_MAX_CONCURRENT', '3'))
+    AUTO_PREDICT_SCHEDULE_HOUR = int(os.environ.get('AUTO_PREDICT_SCHEDULE_HOUR', '8'))  # ET
+    SYSTEM_USER_EMAIL = os.environ.get('SYSTEM_USER_EMAIL', 'system@polysport.ai')
+
+    # 自动回填
+    AUTO_BACKFILL_ENABLED = os.environ.get('AUTO_BACKFILL_ENABLED', 'true').lower() == 'true'
+    AUTO_BACKFILL_HOUR = int(os.environ.get('AUTO_BACKFILL_HOUR', '14'))  # ET
+
+    # Track Record 白名单（逗号分隔邮箱）
+    TRACK_RECORD_WHITELIST = [
+        x.strip().lower() for x in os.environ.get('TRACK_RECORD_WHITELIST', '').split(',')
+        if x.strip()
+    ]
+
     @classmethod
     def validate(cls):
         """验证必要配置"""

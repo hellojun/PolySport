@@ -35,6 +35,7 @@ from ..services.prediction_generator import PredictionGenerator, PredictionOutpu
 from ..utils.llm_client import LLMClient
 from ..utils.redis_client import get_redis
 from ..utils.logger import get_logger
+from ..utils.hit_calculator import compute_hit_status, normalize_hit_status
 
 logger = get_logger('mirofish.api.prediction')
 
@@ -168,111 +169,12 @@ def _do_load_prediction_pg(matchup_id: str) -> Optional[dict]:
     return None
 
 
-def _compute_hit_status(prediction: dict, game_result: dict) -> dict:
-    """
-    计算预测命中状态。
-    betting_card 是客队视角 (左=客队, 右=主队):
-      - moneyline: pick=客队缩写, model_probability=客队胜概率
-      - spread: pick="客队 +/-线", model_probability=客队 cover 概率
-      - total: pick="OVER 线", model_probability=OVER 概率
-    """
-    betting_card = prediction.get('betting_card', [])
-    home_score = game_result.get('home_score')
-    away_score = game_result.get('away_score')
 
-    if home_score is None or away_score is None:
-        return {"moneyline_hit": None, "spread_hit": None, "total_hit": None,
-                "hit_count": 0, "total_markets": 0}
-
-    result = {"moneyline_hit": None, "spread_hit": None, "total_hit": None}
-    hit_count = 0
-    total_markets = 0
-
-    for card in betting_card:
-        market = card.get('market', '')
-        pick = card.get('pick', '')
-        model_prob = card.get('model_probability', 0.5)
-
-        if market == 'moneyline':
-            total_markets += 1
-            # model_probability = 客队胜概率; > 0.5 → 选客队
-            model_picks_away = model_prob > 0.5
-            away_won = away_score > home_score
-            if home_score == away_score:
-                result["moneyline_hit"] = "push"
-                hit_count += 1
-            else:
-                result["moneyline_hit"] = model_picks_away == away_won
-                if result["moneyline_hit"]:
-                    hit_count += 1
-
-        elif market == 'spread':
-            total_markets += 1
-            # spread pick 格式: "客队 +3.5" 或 "客队 -3.5"
-            # model_probability = 客队 cover 概率
-            import re as _re
-            m = _re.search(r'([+-]?\d+\.?\d*)', pick)
-            if m:
-                spread_line = float(m.group(1))  # 客队视角的让分线
-                away_margin = away_score - home_score
-                covered = (away_margin + spread_line) > 0
-                model_picks_cover = model_prob > 0.5
-                if (away_margin + spread_line) == 0:
-                    result["spread_hit"] = "push"
-                    hit_count += 1
-                else:
-                    result["spread_hit"] = model_picks_cover == covered
-                    if result["spread_hit"]:
-                        hit_count += 1
-
-        elif market == 'total':
-            total_markets += 1
-            import re as _re
-            m = _re.search(r'(\d+\.?\d*)', pick)
-            if m:
-                total_line = float(m.group(1))
-                actual_total = home_score + away_score
-                is_over = actual_total > total_line
-                model_picks_over = model_prob > 0.5
-                if actual_total == total_line:
-                    result["total_hit"] = "push"
-                    hit_count += 1
-                else:
-                    result["total_hit"] = model_picks_over == is_over
-                    if result["total_hit"]:
-                        hit_count += 1
-
-    result["hit_count"] = hit_count
-    result["total_markets"] = total_markets
-    return result
+# compute_hit_status / normalize_hit_status 已迁移至 utils.hit_calculator
 
 
-def _normalize_hit_status(hs: dict) -> dict:
-    """
-    根据个别市场的 hit 值重新计算 hit_count/total_markets。
-    修复旧缓存中 push 未计入 hit_count 的问题。
-    """
-    if not hs:
-        return hs
-    hit_count = 0
-    total_markets = 0
-    for key in ("moneyline_hit", "spread_hit", "total_hit"):
-        val = hs.get(key)
-        if val is not None:
-            total_markets += 1
-            if val is True or val == "push":
-                hit_count += 1
-    hs["hit_count"] = hit_count
-    hs["total_markets"] = total_markets
-    return hs
-
-
-@prediction_bp.route('/stats', methods=['GET'])
-def get_public_stats():
-    """公开端点：返回预测命中率统计"""
-    from ..models.prediction import Prediction
-
-    rows = Prediction.query.all()
+def _build_overview(rows):
+    """从 Prediction 行列表计算命中率统计概览"""
     total_predictions = len(rows)
     ml_hits, ml_total = 0, 0
     sp_hits, sp_total = 0, 0
@@ -302,14 +204,110 @@ def get_public_stats():
     total_with_result = max(ml_total, sp_total, tt_total)
     insufficient = total_with_result < 10
 
-    return jsonify({
-        "success": True,
+    return {
         "total_predictions": total_predictions,
         "total_with_result": total_with_result,
         "moneyline_hit_rate": round(ml_hits / ml_total, 3) if ml_total else 0,
         "spread_hit_rate": round(sp_hits / sp_total, 3) if sp_total else 0,
         "total_hit_rate": round(tt_hits / tt_total, 3) if tt_total else 0,
         "insufficient": insufficient,
+    }
+
+
+def _auto_predictions_only(rows):
+    """过滤只保留自动预测（source='auto'）"""
+    return [r for r in rows if (r.data or {}).get('matchup_meta', {}).get('source') == 'auto']
+
+
+@prediction_bp.route('/stats', methods=['GET'])
+def get_public_stats():
+    """公开端点：返回预测命中率统计（仅统计自动预测）"""
+    from ..models.prediction import Prediction
+    rows = _auto_predictions_only(Prediction.query.all())
+    overview = _build_overview(rows)
+    return jsonify({"success": True, **overview})
+
+
+@prediction_bp.route('/track-record', methods=['GET'])
+@jwt_required()
+def get_track_record():
+    """白名单端点：返回完整战绩数据（overview + recent_records + daily_summary）"""
+    from ..models.user import User
+    user_id = int(get_jwt_identity())
+    whitelist = Config.TRACK_RECORD_WHITELIST
+    if whitelist:
+        user = db.session.get(User, user_id)
+        if not user or (user.email or '').lower() not in whitelist:
+            return jsonify({"success": False, "error": "无权访问"}), 403
+
+    from ..models.prediction import Prediction
+    from collections import defaultdict
+
+    rows = _auto_predictions_only(Prediction.query.all())
+    overview = _build_overview(rows)
+
+    # 收集已结束比赛的详细记录
+    finished = []
+    for pred in rows:
+        data = pred.data or {}
+        gr = data.get('game_result')
+        if not gr or gr.get('game_status_id') != 3:
+            continue
+        mm = data.get('matchup_meta') or {}
+        hs = gr.get('hit_status') or {}
+        normalize_hit_status(hs)
+
+        # 提取 betting_card picks
+        picks = {}
+        for card in data.get('betting_card', []):
+            market = card.get('market', '')
+            picks[market] = {
+                "pick": card.get('pick', ''),
+                "model_probability": card.get('model_probability'),
+            }
+
+        finished.append({
+            "game_date": mm.get('game_date', ''),
+            "home": mm.get('home', ''),
+            "away": mm.get('away', ''),
+            "home_score": gr.get('home_score'),
+            "away_score": gr.get('away_score'),
+            "picks": picks,
+            "hit_status": hs,
+        })
+
+    # 按 game_date 降序排序，取最近 30 场
+    finished.sort(key=lambda x: x['game_date'], reverse=True)
+    recent_records = finished[:30]
+
+    # 按日汇总最近 30 天
+    daily = defaultdict(lambda: {"predictions": 0, "hits": 0, "total_markets": 0})
+    for rec in finished:
+        d = rec['game_date']
+        if not d:
+            continue
+        daily[d]["predictions"] += 1
+        daily[d]["hits"] += rec['hit_status'].get('hit_count', 0)
+        daily[d]["total_markets"] += rec['hit_status'].get('total_markets', 0)
+
+    sorted_days = sorted(daily.keys(), reverse=True)[:30]
+    daily_summary = []
+    for d in sorted_days:
+        info = daily[d]
+        daily_summary.append({
+            "date": d,
+            "predictions": info["predictions"],
+            "hits": info["hits"],
+            "total_markets": info["total_markets"],
+            "hit_rate": round(info["hits"] / info["total_markets"], 3)
+            if info["total_markets"] else 0,
+        })
+
+    return jsonify({
+        "success": True,
+        "overview": overview,
+        "recent_records": recent_records,
+        "daily_summary": daily_summary,
     })
 
 
@@ -326,7 +324,7 @@ def fetch_game_result(matchup_id):
     existing = prediction.get('game_result')
     if existing and existing.get('game_status_id') == 3:
         if existing.get('hit_status'):
-            _normalize_hit_status(existing['hit_status'])
+            normalize_hit_status(existing['hit_status'])
         return jsonify({"success": True, "game_result": existing})
 
     # 从 prediction 数据或 task metadata 提取球队和日期
@@ -382,7 +380,7 @@ def fetch_game_result(matchup_id):
         }), 400
 
     # 计算命中状态
-    hit_status = _compute_hit_status(prediction, result)
+    hit_status = compute_hit_status(prediction, result)
     result['hit_status'] = hit_status
     result['fetched_at'] = datetime.now().isoformat()
 
@@ -437,7 +435,7 @@ def get_prediction_history():
             if gr:
                 hs = gr.get("hit_status")
                 if hs:
-                    _normalize_hit_status(hs)
+                    normalize_hit_status(hs)
                 item["game_result"] = {
                     "home_score": gr.get("home_score"),
                     "away_score": gr.get("away_score"),
@@ -704,7 +702,7 @@ def get_prediction_result(matchup_id):
     # 归一化 game_result.hit_status（修复旧缓存数据）
     gr = prediction.get("game_result")
     if gr and gr.get("hit_status"):
-        _normalize_hit_status(gr["hit_status"])
+        normalize_hit_status(gr["hit_status"])
 
     return jsonify({
         "success": True,
@@ -1221,14 +1219,18 @@ def _prediction_worker(app, task_id: str, matchup: MatchupInput, lang: str = "en
                 logger.warning(f"删除临时图谱失败: {e}")
 
         # ── 存储结果 ──
+        matchup_meta = {
+            "home": matchup.home_team.abbreviation,
+            "away": matchup.away_team.abbreviation,
+            "game_date": matchup.game_date or "",
+        }
+        if matchup.source and matchup.source != "manual":
+            matchup_meta["source"] = matchup.source
+
         with app.app_context():
             _save_prediction(matchup.matchup_id, prediction_output,
                              graph_data=graph_data_for_frontend,
-                             matchup_meta={
-                                 "home": matchup.home_team.abbreviation,
-                                 "away": matchup.away_team.abbreviation,
-                                 "game_date": matchup.game_date or "",
-                             },
+                             matchup_meta=matchup_meta,
                              user_id=user_id,
                              task_id=task_id)
 

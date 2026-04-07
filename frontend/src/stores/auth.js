@@ -53,6 +53,10 @@ export function isLoggedIn() {
   return !!state.token
 }
 
+export function hasPermission(perm) {
+  return !!(state.user?.permissions || []).includes(perm)
+}
+
 export const authState = state
 
 // ---- 全局弹窗控制 ----
