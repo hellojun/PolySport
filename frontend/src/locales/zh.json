@@ -194,7 +194,8 @@
     "subscribe_success": "订阅成功，额度已更新",
     "subscribe": "订阅",
     "prediction": "预测",
-    "insufficient_quota": "额度不足，请升级订阅"
+    "insufficient_quota": "额度不足，请升级订阅",
+    "quota_exhausted_desc": "本月预测额度已用完，升级订阅计划即可继续预测。"
   },
   "home": {
     "tag": "// AI 驱动的体育预测",

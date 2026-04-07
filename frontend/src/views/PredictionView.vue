@@ -88,6 +88,19 @@
         </div>
       </section>
 
+      <!-- ===== 额度不足弹窗 ===== -->
+      <div v-if="showQuotaAlert" class="quota-overlay" @click.self="showQuotaAlert = false">
+        <div class="quota-modal">
+          <button class="quota-close" @click="showQuotaAlert = false">&times;</button>
+          <div class="quota-icon">0</div>
+          <h3 class="quota-title">{{ t('subscription.insufficient_quota') }}</h3>
+          <p class="quota-desc">{{ t('subscription.quota_exhausted_desc') }}</p>
+          <button class="quota-upgrade-btn" @click="showQuotaAlert = false; openAccountModal()">
+            {{ t('subscription.upgrade_btn') }}
+          </button>
+        </div>
+      </div>
+
       <!-- ===== PROGRESS 状态 (双栏布局) ===== -->
       <section v-if="viewState === 'progress'" class="progress-section">
         <!-- 顶部进度条 -->
@@ -324,6 +337,7 @@ const matchupId = ref('')
 const taskProgress = ref(0)
 const taskMessage = ref('')
 const submitError = ref('')
+const showQuotaAlert = ref(false)
 let pollTimer = null
 let pollStartTime = null
 
@@ -433,8 +447,7 @@ async function selectGame(event) {
   } catch (err) {
     const errData = err?.response?.data
     if (errData?.error === '额度不足') {
-      submitError.value = t('subscription.insufficient_quota')
-      openAccountModal()
+      showQuotaAlert.value = true
     } else {
       submitError.value = err.message || t('game_select.submit_error')
     }
@@ -1463,6 +1476,89 @@ onMounted(async () => {
   font-family: var(--font-mono);
   font-size: 0.8rem;
 }
+
+/* ===== QUOTA ALERT MODAL ===== */
+.quota-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.quota-modal {
+  background: var(--white);
+  border: 1px solid var(--border);
+  padding: 40px 36px 32px;
+  max-width: 380px;
+  width: 90%;
+  text-align: center;
+  position: relative;
+}
+
+.quota-close {
+  position: absolute;
+  top: 12px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: #999;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.quota-close:hover { color: var(--black); }
+
+.quota-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  border: 2px solid #CC0000;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #CC0000;
+}
+
+.quota-title {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0 0 8px 0;
+  color: var(--black);
+}
+
+.quota-desc {
+  font-size: 0.9rem;
+  color: var(--gray-text);
+  margin: 0 0 24px 0;
+  line-height: 1.5;
+}
+
+.quota-upgrade-btn {
+  background: var(--black);
+  color: var(--white);
+  border: none;
+  padding: 12px 32px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.3s;
+  width: 100%;
+}
+
+.quota-upgrade-btn:hover { background: var(--orange); }
 
 /* Responsive */
 @media (max-width: 1024px) {

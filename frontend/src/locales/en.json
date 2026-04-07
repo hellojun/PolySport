@@ -194,7 +194,8 @@
     "subscribe_success": "Subscription activated, quota updated",
     "subscribe": "Subscribe",
     "prediction": "Prediction",
-    "insufficient_quota": "Quota exceeded, please upgrade your plan"
+    "insufficient_quota": "Quota exceeded, please upgrade your plan",
+    "quota_exhausted_desc": "Your monthly prediction quota has been used up. Upgrade your plan to continue predicting."
   },
   "home": {
     "tag": "// AI-POWERED SPORTS PREDICTION",
