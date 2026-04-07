@@ -160,6 +160,7 @@
   "account": {
     "my_account": "My Account",
     "info_tab": "Info",
+    "history_tab": "History",
     "settings_tab": "Settings",
     "email_label": "Email",
     "balance_label": "Balance",
@@ -181,18 +182,19 @@
     "no_history": "No transactions yet",
     "logout": "Logout"
   },
-  "predict_type": {
-    "choose_title": "Choose Prediction Type",
-    "normal": "Standard",
-    "normal_desc": "Quick analysis, 1 debate round, no graph, no smart money",
-    "normal_cost": "2 Token",
-    "normal_eta": "~2 min",
-    "premium": "Premium",
-    "premium_desc": "Full analysis, 3 debate rounds + knowledge graph + smart money",
-    "premium_cost": "4 Token",
-    "premium_eta": "~6 min",
-    "insufficient": "Insufficient balance, please deposit first",
-    "current_balance": "Balance"
+  "subscription": {
+    "current_plan": "Current Plan",
+    "remaining": "Remaining Quota",
+    "expires": "Expires",
+    "upgrade_btn": "Upgrade Plan",
+    "month": "mo",
+    "predictions": "predictions",
+    "subscribing_to": "Subscribing to",
+    "amount": "Amount",
+    "subscribe_success": "Subscription activated, quota updated",
+    "subscribe": "Subscribe",
+    "prediction": "Prediction",
+    "insufficient_quota": "Quota exceeded, please upgrade your plan"
   },
   "home": {
     "tag": "// AI-POWERED SPORTS PREDICTION",

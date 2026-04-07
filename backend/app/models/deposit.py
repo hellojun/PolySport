@@ -19,6 +19,7 @@ class DepositOrder(db.Model):
     tokens_credit = db.Column(db.Numeric(18, 6), nullable=False)
     tx_hash = db.Column(db.String(128), unique=True, nullable=True)
     from_address = db.Column(db.String(64), nullable=True)
+    plan = db.Column(db.String(20), nullable=True)  # subscription plan: basic/pro/premium
     status = db.Column(db.String(20), default='pending', nullable=False)  # pending/confirming/completed/failed
     confirmations = db.Column(db.Integer, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
@@ -36,6 +37,7 @@ class DepositOrder(db.Model):
             "tokens_credit": float(self.tokens_credit),
             "tx_hash": self.tx_hash,
             "from_address": self.from_address,
+            "plan": self.plan,
             "status": self.status,
             "confirmations": self.confirmations,
             "created_at": self.created_at.isoformat(),
@@ -48,7 +50,7 @@ class TokenTransaction(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
-    type = db.Column(db.String(30), nullable=False)  # deposit/predict_normal/predict_premium/refund
+    type = db.Column(db.String(30), nullable=False)  # deposit/subscribe/refund
     amount = db.Column(db.Numeric(18, 6), nullable=False)  # 正=充值, 负=消费
     balance = db.Column(db.Numeric(18, 6), nullable=False)  # 交易后余额
     reference = db.Column(db.String(128), nullable=True)  # order_no 或 task_id

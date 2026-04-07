@@ -264,7 +264,6 @@ class AutoPredictionScheduler:
                 "game_date": game_date,
                 "game_time": game.get('game_time_utc', ''),
                 "lang": Config.AUTO_PREDICT_LANG,
-                "prediction_type": Config.AUTO_PREDICT_TYPE,
                 "user_id": system_user.id,
                 "source": "auto",
             },

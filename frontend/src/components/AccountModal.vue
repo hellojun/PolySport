@@ -10,6 +10,11 @@
           >{{ t('account.info_tab') }}</button>
           <button
             class="tab-btn"
+            :class="{ active: accountModal.tab === 'history' }"
+            @click="accountModal.tab = 'history'"
+          >{{ t('account.history_tab') }}</button>
+          <button
+            class="tab-btn"
             :class="{ active: accountModal.tab === 'settings' }"
             @click="accountModal.tab = 'settings'"
           >{{ t('account.settings_tab') }}</button>
@@ -24,70 +29,101 @@
           <span class="info-value">{{ userEmail }}</span>
         </div>
 
-        <div class="info-row balance-row">
-          <span class="info-label">{{ t('account.balance_label') }}</span>
-          <span class="info-value balance-value">{{ balance.toFixed(2) }} Token</span>
-          <button class="deposit-toggle-btn" @click="showDeposit = !showDeposit">
-            {{ showDeposit ? '▲' : t('account.deposit_btn') }}
+        <!-- 订阅状态 -->
+        <div class="subscription-status">
+          <div class="sub-plan-row">
+            <span class="sub-plan-label">{{ t('subscription.current_plan') }}</span>
+            <span class="sub-plan-name">{{ currentPlanLabel }}</span>
+          </div>
+          <div class="sub-quota-row">
+            <span class="sub-quota-label">{{ t('subscription.remaining') }}</span>
+            <span class="sub-quota-value">{{ remainingQuota }} / {{ totalQuota }}</span>
+          </div>
+          <div v-if="subscriptionData && subscriptionData.period_end" class="sub-expire-row">
+            <span class="sub-expire-label">{{ t('subscription.expires') }}</span>
+            <span class="sub-expire-value">{{ formatDate(subscriptionData.period_end) }}</span>
+          </div>
+        </div>
+
+        <!-- 升级/订阅区 -->
+        <div class="plans-section">
+          <button class="upgrade-toggle-btn" @click="showPlans = !showPlans">
+            {{ showPlans ? '▲' : t('subscription.upgrade_btn') }}
           </button>
-        </div>
 
-        <!-- 充值区 -->
-        <div v-if="showDeposit" class="deposit-section">
-          <div class="deposit-address-area">
-            <p class="deposit-hint">{{ t('account.deposit_hint') }}</p>
-            <div class="address-box">
-              <code class="address-text">{{ platformAddress }}</code>
-              <button class="copy-btn" @click="copyAddress">
-                {{ copied ? t('account.copied') : t('account.copy_address') }}
-              </button>
-            </div>
-            <canvas ref="qrCanvas" class="qr-canvas"></canvas>
-          </div>
-
-          <div class="deposit-form">
-            <p class="exchange-rate-hint">1 USDT = 1 Token</p>
-
-            <input
-              v-model="txHash"
-              class="form-input tx-input"
-              :placeholder="t('account.tx_hash_placeholder')"
-            />
-
-            <button
-              class="submit-btn"
-              :disabled="!txHash || submitting"
-              @click="handleSubmitTx"
+          <div v-if="showPlans" class="plans-grid">
+            <div
+              v-for="plan in plans.filter(p => p.plan !== 'free')"
+              :key="plan.plan"
+              class="plan-card"
+              :class="{ active: currentPlan === plan.plan }"
+              @click="selectPlan(plan)"
             >
-              {{ submitting ? t('account.verifying') : t('account.submit_verify') }}
-            </button>
-
-            <p v-if="depositStatus === 'completed'" class="status-text success">{{ t('account.verify_success') }}</p>
-            <p v-if="depositStatus === 'failed'" class="status-text error">{{ depositError || t('account.verify_failed') }}</p>
-            <p v-if="depositStatus === 'confirming'" class="status-text warning">{{ depositError }}</p>
+              <div class="plan-name">{{ plan.label }}</div>
+              <div class="plan-price">${{ plan.price }} <span class="plan-period">/ {{ t('subscription.month') }}</span></div>
+              <div class="plan-quota">{{ plan.quota }} {{ t('subscription.predictions') }}</div>
+            </div>
           </div>
-        </div>
 
-        <!-- 交易记录 -->
-        <div class="history-section">
-          <h4 class="section-title">{{ t('account.tx_history') }}</h4>
-          <div v-if="transactions.length === 0" class="no-history">{{ t('account.no_history') }}</div>
-          <div v-else class="tx-list">
-            <div v-for="tx in transactions" :key="tx.id" class="tx-item">
-              <div class="tx-info">
-                <span class="tx-type" :class="tx.amount >= 0 ? 'credit' : 'debit'">
-                  {{ txTypeLabel(tx.type) }}
-                </span>
-                <span class="tx-time">{{ formatTime(tx.created_at) }}</span>
+          <!-- 付款流程 -->
+          <div v-if="selectedPlan" class="payment-section">
+            <div class="payment-info">
+              <p class="payment-plan">{{ t('subscription.subscribing_to') }}: <strong>{{ selectedPlan.label }}</strong></p>
+              <p class="payment-amount">{{ t('subscription.amount') }}: <strong>${{ selectedPlan.price }} USDT</strong></p>
+            </div>
+
+            <div class="deposit-address-area">
+              <p class="deposit-hint">{{ t('account.deposit_hint') }}</p>
+              <div class="address-box">
+                <code class="address-text">{{ platformAddress }}</code>
+                <button class="copy-btn" @click="copyAddress">
+                  {{ copied ? t('account.copied') : t('account.copy_address') }}
+                </button>
               </div>
-              <span class="tx-amount" :class="tx.amount >= 0 ? 'credit' : 'debit'">
-                {{ tx.amount >= 0 ? '+' : '' }}{{ tx.amount.toFixed(2) }}
-              </span>
+              <canvas ref="qrCanvas" class="qr-canvas"></canvas>
+            </div>
+
+            <div class="deposit-form">
+              <input
+                v-model="txHash"
+                class="form-input tx-input"
+                :placeholder="t('account.tx_hash_placeholder')"
+              />
+
+              <button
+                class="submit-btn"
+                :disabled="!txHash || submitting"
+                @click="handleSubmitPayment"
+              >
+                {{ submitting ? t('account.verifying') : t('account.submit_verify') }}
+              </button>
+
+              <p v-if="paymentStatus === 'completed'" class="status-text success">{{ t('subscription.subscribe_success') }}</p>
+              <p v-if="paymentStatus === 'failed'" class="status-text error">{{ paymentError || t('account.verify_failed') }}</p>
+              <p v-if="paymentStatus === 'confirming'" class="status-text warning">{{ paymentError }}</p>
             </div>
           </div>
         </div>
 
         <button class="logout-btn-full" @click="handleLogout">{{ t('account.logout') }}</button>
+      </div>
+
+      <!-- 交易记录 Tab -->
+      <div v-if="accountModal.tab === 'history'" class="account-body">
+        <div v-if="transactions.length === 0" class="no-history">{{ t('account.no_history') }}</div>
+        <div v-else class="tx-list">
+          <div v-for="tx in transactions" :key="tx.id" class="tx-item">
+            <div class="tx-info">
+              <span class="tx-type" :class="tx.amount >= 0 ? 'credit' : 'debit'">
+                {{ txTypeLabel(tx.type) }}
+              </span>
+              <span class="tx-time">{{ formatTime(tx.created_at) }}</span>
+            </div>
+            <span class="tx-amount" :class="tx.amount >= 0 ? 'credit' : 'debit'">
+              {{ tx.amount >= 0 ? '+' : '' }}{{ tx.amount.toFixed(2) }}
+            </span>
+          </div>
+        </div>
       </div>
 
       <!-- 设置 Tab -->
@@ -108,14 +144,16 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, nextTick } from 'vue'
+import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   authState, clearAuth, accountModal, closeAccountModal,
 } from '../stores/auth'
 import { logout as logoutApi } from '../api/auth'
 import {
-  getPlatformAddress, createDepositOrder, submitTxHash, getBalance, getTokenHistory,
+  getPlatformAddress, getTokenHistory,
+  getPlans, getCurrentSubscription,
+  createSubscriptionOrder, verifySubscriptionPayment,
 } from '../api/deposit'
 import QRCode from 'qrcode'
 
@@ -135,26 +173,53 @@ async function handleLogout() {
   closeAccountModal()
 }
 
-// ---- Balance ----
-const balance = ref(0)
+// ---- Subscription ----
+const currentPlan = ref('free')
+const currentPlanLabel = ref('Free')
+const remainingQuota = ref(0)
+const totalQuota = ref(3)
+const subscriptionData = ref(null)
+const plans = ref([])
+const showPlans = ref(false)
+const selectedPlan = ref(null)
+const orderNo = ref('')
 
-async function refreshBalance() {
+async function refreshSubscription() {
   try {
-    const res = await getBalance()
-    balance.value = res.balance || 0
+    const res = await getCurrentSubscription()
+    currentPlan.value = res.plan || 'free'
+    currentPlanLabel.value = res.plan_label || 'Free'
+    remainingQuota.value = res.remaining_quota || 0
+    totalQuota.value = res.total_quota || 3
+    subscriptionData.value = res.subscription
   } catch {}
 }
 
-// ---- Deposit ----
-const showDeposit = ref(false)
+async function loadPlans() {
+  try {
+    const res = await getPlans()
+    plans.value = res.plans || []
+  } catch {}
+}
+
+async function selectPlan(plan) {
+  selectedPlan.value = plan
+  paymentStatus.value = ''
+  paymentError.value = ''
+  orderNo.value = ''
+  txHash.value = ''
+
+  await loadPlatformAddress()
+  nextTick(() => { drawQR() })
+}
+
+// ---- Payment ----
 const platformAddress = ref('')
 const copied = ref(false)
-const depositAmount = ref(10)
 const txHash = ref('')
 const submitting = ref(false)
-const depositStatus = ref('')
-const depositError = ref('')
-const orderNo = ref('')
+const paymentStatus = ref('')
+const paymentError = ref('')
 const qrCanvas = ref(null)
 
 async function loadPlatformAddress() {
@@ -179,45 +244,40 @@ function drawQR() {
   })
 }
 
-watch(showDeposit, (val) => {
-  if (val) {
-    loadPlatformAddress()
-    nextTick(() => { drawQR() })
-  }
-})
-
 watch(platformAddress, () => {
   nextTick(() => { drawQR() })
 })
 
-async function handleSubmitTx() {
-  if (!txHash.value) return
+async function handleSubmitPayment() {
+  if (!txHash.value || !selectedPlan.value) return
   submitting.value = true
-  depositStatus.value = ''
-  depositError.value = ''
+  paymentStatus.value = ''
+  paymentError.value = ''
 
   try {
     // 创建订单
     if (!orderNo.value) {
-      const orderRes = await createDepositOrder(depositAmount.value)
+      const orderRes = await createSubscriptionOrder(selectedPlan.value.plan)
       orderNo.value = orderRes.order_no
     }
 
     // 提交验证
-    const res = await submitTxHash(orderNo.value, txHash.value.trim())
+    const res = await verifySubscriptionPayment(orderNo.value, txHash.value.trim())
     if (res.success) {
-      depositStatus.value = 'completed'
-      balance.value = res.balance || balance.value
-      txHash.value = ''
+      paymentStatus.value = 'completed'
+      selectedPlan.value = null
       orderNo.value = ''
+      txHash.value = ''
+      showPlans.value = false
+      refreshSubscription()
       refreshHistory()
     } else {
-      depositStatus.value = res.status || 'failed'
-      depositError.value = res.error || ''
+      paymentStatus.value = res.status || 'failed'
+      paymentError.value = res.error || ''
     }
   } catch (err) {
-    depositStatus.value = 'failed'
-    depositError.value = err?.response?.data?.error || err.message || ''
+    paymentStatus.value = 'failed'
+    paymentError.value = err?.response?.data?.error || err.message || ''
   } finally {
     submitting.value = false
   }
@@ -236,8 +296,9 @@ async function refreshHistory() {
 function txTypeLabel(type) {
   const map = {
     deposit: t('account.deposit_btn'),
-    predict_normal: t('predict_type.normal'),
-    predict_premium: t('predict_type.premium'),
+    subscribe: t('subscription.subscribe'),
+    predict_premium: t('subscription.prediction'),
+    predict_normal: t('subscription.prediction'),
     refund: 'Refund',
   }
   return map[type] || type
@@ -249,23 +310,24 @@ function formatTime(iso) {
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
+function formatDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 // ---- Settings ----
 const fastMode = ref(localStorage.getItem('fastMode') === 'true')
-const debateRounds = ref(parseInt(localStorage.getItem('debateRounds') || '3', 10))
 
 function saveFastMode() {
   localStorage.setItem('fastMode', String(fastMode.value))
 }
 
-function setDebateRounds(n) {
-  debateRounds.value = n
-  localStorage.setItem('debateRounds', String(n))
-}
-
 // ---- Init on visible ----
 watch(() => accountModal.visible, (val) => {
   if (val) {
-    refreshBalance()
+    refreshSubscription()
+    loadPlans()
     refreshHistory()
   }
 })
@@ -285,7 +347,7 @@ watch(() => accountModal.visible, (val) => {
 
 .account-modal {
   background: var(--white);
-  max-width: 480px;
+  max-width: 520px;
   width: 90%;
   max-height: 85vh;
   overflow-y: auto;
@@ -318,7 +380,8 @@ watch(() => accountModal.visible, (val) => {
 }
 
 .tab-btn:first-child { border-radius: 4px 0 0 4px; }
-.tab-btn:last-child { border-radius: 0 4px 4px 0; border-left: none; }
+.tab-btn:last-child { border-radius: 0 4px 4px 0; }
+.tab-btn + .tab-btn { border-left: none; }
 
 .tab-btn.active {
   background: var(--black);
@@ -361,38 +424,148 @@ watch(() => accountModal.visible, (val) => {
   font-weight: 600;
 }
 
-.balance-row { margin-bottom: 20px; }
-
-.balance-value {
-  color: var(--orange);
-  font-size: 1.1rem;
+/* Subscription Status */
+.subscription-status {
+  background: #FAFAFA;
+  border: 1px solid var(--border);
+  padding: 16px;
+  margin-bottom: 20px;
 }
 
-.deposit-toggle-btn {
+.sub-plan-row, .sub-quota-row, .sub-expire-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.sub-plan-row:last-child, .sub-quota-row:last-child, .sub-expire-row:last-child {
+  margin-bottom: 0;
+}
+
+.sub-plan-label, .sub-quota-label, .sub-expire-label {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--gray-text);
+}
+
+.sub-plan-name {
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--orange);
+}
+
+.sub-quota-value {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.sub-expire-value {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: #666;
+}
+
+/* Plans */
+.plans-section {
+  margin-bottom: 20px;
+}
+
+.upgrade-toggle-btn {
   background: none;
   border: 1px solid var(--orange);
   color: var(--orange);
   font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 700;
-  padding: 4px 12px;
+  padding: 6px 16px;
   cursor: pointer;
-  margin-left: auto;
   transition: all 0.2s;
+  margin-bottom: 12px;
 }
 
-.deposit-toggle-btn:hover {
+.upgrade-toggle-btn:hover {
   background: var(--orange);
   color: var(--white);
 }
 
-/* Deposit */
-.deposit-section {
+.plans-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.plan-card {
+  border: 2px solid var(--border);
+  padding: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.plan-card:hover {
+  border-color: var(--orange);
+  box-shadow: 0 2px 8px rgba(255, 69, 0, 0.1);
+}
+
+.plan-card.active {
+  border-color: var(--orange);
+  background: #FFF5F0;
+}
+
+.plan-name {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.plan-price {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--orange);
+  margin-bottom: 4px;
+}
+
+.plan-period {
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: #999;
+}
+
+.plan-quota {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--gray-text);
+}
+
+/* Payment */
+.payment-section {
   background: #FAFAFA;
   border: 1px solid var(--border);
   padding: 16px;
-  margin-bottom: 20px;
 }
+
+.payment-info {
+  margin-bottom: 12px;
+}
+
+.payment-info p {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  margin: 0 0 4px 0;
+  color: #666;
+}
+
+.payment-info strong {
+  color: var(--black);
+}
+
+.deposit-address-area { margin-bottom: 12px; }
 
 .deposit-hint {
   font-size: 0.8rem;
@@ -444,15 +617,6 @@ watch(() => accountModal.visible, (val) => {
   gap: 12px;
 }
 
-.exchange-rate-hint {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--orange);
-  margin: 0;
-  text-align: center;
-}
-
 .form-input {
   border: 1px solid var(--border);
   background: var(--white);
@@ -491,22 +655,6 @@ watch(() => accountModal.visible, (val) => {
 .status-text.warning { color: #CC6600; }
 
 /* History */
-.history-section {
-  margin-top: 20px;
-  border-top: 1px solid var(--border);
-  padding-top: 16px;
-}
-
-.section-title {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  margin: 0 0 12px 0;
-  color: #333;
-}
-
 .no-history {
   font-size: 0.8rem;
   color: var(--gray-text);
@@ -576,7 +724,7 @@ watch(() => accountModal.visible, (val) => {
   color: var(--white);
 }
 
-/* Settings (reuse styles from App.vue) */
+/* Settings */
 .setting-item {
   display: flex;
   justify-content: space-between;
@@ -635,37 +783,8 @@ watch(() => accountModal.visible, (val) => {
 .toggle-switch input:checked + .toggle-slider { background: var(--orange); }
 .toggle-switch input:checked + .toggle-slider::before { transform: translateX(20px); }
 
-.rounds-btn-group {
-  display: flex;
-  gap: 0;
-  flex-shrink: 0;
-}
-
-.rounds-btn {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--gray-text);
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  font-weight: 700;
-  width: 36px;
-  height: 32px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.rounds-btn:first-child { border-radius: 4px 0 0 4px; }
-.rounds-btn:last-child { border-radius: 0 4px 4px 0; }
-.rounds-btn:not(:first-child) { border-left: none; }
-
-.rounds-btn.active {
-  background: var(--orange);
-  border-color: var(--orange);
-  color: var(--white);
-}
-
-.rounds-btn:not(.active):hover {
-  border-color: var(--black);
-  color: var(--black);
+/* Responsive */
+@media (max-width: 480px) {
+  .plans-grid { grid-template-columns: 1fr; }
 }
 </style>

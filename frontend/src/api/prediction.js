@@ -11,12 +11,11 @@ export const getPolymarketEvents = (date) => {
 }
 
 /**
- * 创建预测任务
+ * 创建预测任务（统一 premium 流程）
  * @param {Object} data - 对阵数据
- * @param {string} predictionType - 'normal' | 'premium'
  */
-export const createPrediction = (data, predictionType = 'premium') => {
-  return service.post('/api/prediction/create', { ...data, prediction_type: predictionType })
+export const createPrediction = (data) => {
+  return service.post('/api/prediction/create', data)
 }
 
 /**

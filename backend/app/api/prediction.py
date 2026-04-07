@@ -25,7 +25,6 @@ from ..extensions import db
 from ..models.task import TaskManager, TaskStatus
 from ..models.matchup import MatchupInput
 from ..models.user import User
-from ..models.deposit import TokenTransaction
 from ..services.graph_builder import GraphBuilderService
 from ..services.zep_tools import ZepToolsService
 from ..services.text_processor import TextProcessor
@@ -564,7 +563,7 @@ def get_polymarket_events():
 @prediction_bp.route('/create', methods=['POST'])
 @jwt_required()
 def create_prediction():
-    """创建预测任务"""
+    """创建预测任务（统一 premium 流程，订阅额度制）"""
     from flask import current_app
     user_id = int(get_jwt_identity())
     data = request.get_json()
@@ -583,40 +582,29 @@ def create_prediction():
     if lang not in ("zh", "en"):
         lang = "en"
 
-    # 预测类型 & 定价
-    prediction_type = data.get("prediction_type", "premium")
-    if prediction_type not in ("normal", "premium"):
-        prediction_type = "premium"
-
-    cost = Config.PREDICTION_COST_NORMAL if prediction_type == "normal" else Config.PREDICTION_COST_PREMIUM
-
-    # 余额检查 & 扣费
+    # 订阅额度检查（system 用户跳过）
     user = User.query.get(user_id)
-    balance = float(user.token_balance or 0)
-    if balance < cost:
-        return jsonify({
-            "success": False,
-            "error": "余额不足",
-            "required": cost,
-            "balance": balance,
-        }), 402
+    is_system = user.email == Config.SYSTEM_USER_EMAIL
+    sub = None
 
-    from decimal import Decimal
-    user.token_balance = (user.token_balance or Decimal(0)) - Decimal(str(cost))
+    if not is_system:
+        if not user.can_predict():
+            return jsonify({
+                "success": False,
+                "error": "额度不足",
+                "remaining_quota": 0,
+            }), 402
 
+        # 扣额度
+        sub = user.get_active_subscription()
+        if sub:
+            sub.used += 1
+
+    # 统一 premium 参数
     fast_mode = bool(data.get("fast_mode", False))
-    debate_rounds = data.get("debate_rounds", Config.DEBATE_NUM_ROUNDS)
-    if debate_rounds not in (1, 2, 3):
-        debate_rounds = Config.DEBATE_NUM_ROUNDS
-
-    # 根据 prediction_type 调整参数
-    if prediction_type == "normal":
-        debate_rounds = 1
-        use_graph = False
-        use_smart_money = False
-    else:
-        use_graph = True
-        use_smart_money = True
+    debate_rounds = Config.DEBATE_NUM_ROUNDS
+    use_graph = True
+    use_smart_money = True
 
     # 创建异步任务
     task_id = task_manager.create_task(
@@ -628,26 +616,16 @@ def create_prediction():
             "game_date": matchup.game_date or "",
             "game_time": data.get("game_time") or "",
             "lang": lang,
-            "prediction_type": prediction_type,
             "user_id": user_id,
         },
         user_id=user_id,
     )
 
-    # 记录扣费流水
-    tx_type = 'predict_normal' if prediction_type == 'normal' else 'predict_premium'
-    tx_record = TokenTransaction(
-        user_id=user_id,
-        type=tx_type,
-        amount=Decimal(str(-cost)),
-        balance=user.token_balance,
-        reference=task_id,
-    )
-    db.session.add(tx_record)
     db.session.commit()
 
     # 后台线程执行（需要传递 app context）
     app = current_app._get_current_object()
+    cost = 0 if is_system else 1  # 1 = one quota unit
     thread = threading.Thread(
         target=_prediction_worker,
         args=(app, task_id, matchup, lang, fast_mode, debate_rounds, use_graph, use_smart_money, user_id, cost),
@@ -659,8 +637,7 @@ def create_prediction():
         "success": True,
         "task_id": task_id,
         "matchup_id": matchup.matchup_id,
-        "cost": cost,
-        "balance": float(user.token_balance),
+        "remaining_quota": user.get_remaining_quota() if not is_system else -1,
     })
 
 
@@ -1249,26 +1226,14 @@ def _prediction_worker(app, task_id: str, matchup: MatchupInput, lang: str = "en
         logger.error(f"预测失败: {error_msg}")
         task_manager.fail_task(task_id, str(e))
 
-        # 退还 Token
+        # 退还订阅额度
         if user_id and cost > 0:
             try:
                 with app.app_context():
-                    from decimal import Decimal as Dec
-                    refund_user = User.query.get(user_id)
-                    if refund_user:
-                        refund_user.token_balance = (refund_user.token_balance or Dec(0)) + Dec(str(cost))
-                        refund_tx = TokenTransaction(
-                            user_id=user_id,
-                            type='refund',
-                            amount=Dec(str(cost)),
-                            balance=refund_user.token_balance,
-                            reference=task_id,
-                        )
-                        db.session.add(refund_tx)
-                        db.session.commit()
-                        logger.info(f"预测失败，已退还 {cost} Token 给用户 {user_id}")
+                    from .subscription import _refund_quota
+                    _refund_quota(user_id, task_id, logger)
             except Exception as refund_err:
-                logger.error(f"退款失败: {refund_err}")
+                logger.error(f"退还额度失败: {refund_err}")
 
         # 尝试清理图谱
         if graph_id:

@@ -160,6 +160,7 @@
   "account": {
     "my_account": "我的账号",
     "info_tab": "信息",
+    "history_tab": "记录",
     "settings_tab": "设置",
     "email_label": "邮箱",
     "balance_label": "余额",
@@ -181,18 +182,19 @@
     "no_history": "暂无交易记录",
     "logout": "退出登录"
   },
-  "predict_type": {
-    "choose_title": "选择预测类型",
-    "normal": "普通预测",
-    "normal_desc": "快速分析，1 轮辩论，无图谱，无聪明钱",
-    "normal_cost": "2 Token",
-    "normal_eta": "预计 ~2 分钟",
-    "premium": "高级预测",
-    "premium_desc": "完整分析，3 轮辩论 + 知识图谱 + 聪明钱数据",
-    "premium_cost": "4 Token",
-    "premium_eta": "预计 ~6 分钟",
-    "insufficient": "余额不足，请先充值",
-    "current_balance": "当前余额"
+  "subscription": {
+    "current_plan": "当前计划",
+    "remaining": "剩余额度",
+    "expires": "到期日期",
+    "upgrade_btn": "升级订阅",
+    "month": "月",
+    "predictions": "次预测",
+    "subscribing_to": "订阅计划",
+    "amount": "金额",
+    "subscribe_success": "订阅成功，额度已更新",
+    "subscribe": "订阅",
+    "prediction": "预测",
+    "insufficient_quota": "额度不足，请升级订阅"
   },
   "home": {
     "tag": "// AI 驱动的体育预测",

@@ -4,7 +4,7 @@
 """
 
 import os
-from datetime import timedelta
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 project_root_env = os.path.join(os.path.dirname(__file__), '../../.env')
@@ -104,14 +104,13 @@ class Config:
     PLATFORM_WALLET_ADDRESS = os.environ.get('PLATFORM_WALLET_ADDRESS', '')
     DEPOSIT_MIN_CONFIRMATIONS = int(os.environ.get('DEPOSIT_MIN_CONFIRMATIONS', '5'))
 
-    # 预测定价 (Token)
-    PREDICTION_COST_NORMAL = 2
-    PREDICTION_COST_PREMIUM = 4
+    # 订阅制
+    FREE_MONTHLY_QUOTA = 3
+    SUBSCRIPTION_LAUNCH_DATE = datetime(2026, 4, 7)  # 订阅制上线日期，之前的预测不计入免费额度
 
     # 自动预测
     AUTO_PREDICT_ENABLED = os.environ.get('AUTO_PREDICT_ENABLED', 'true').lower() == 'true'
     AUTO_PREDICT_MINUTES_BEFORE = int(os.environ.get('AUTO_PREDICT_MINUTES_BEFORE', '30'))
-    AUTO_PREDICT_TYPE = 'premium'
     AUTO_PREDICT_LANG = 'en'
     AUTO_PREDICT_MAX_CONCURRENT = int(os.environ.get('AUTO_PREDICT_MAX_CONCURRENT', '3'))
     AUTO_PREDICT_SCHEDULE_HOUR = int(os.environ.get('AUTO_PREDICT_SCHEDULE_HOUR', '8'))  # ET

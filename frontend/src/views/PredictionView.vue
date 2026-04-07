@@ -86,42 +86,6 @@
 
           <p v-if="submitError" class="error-text">{{ submitError }}</p>
         </div>
-
-        <!-- 预测类型选择面板 -->
-        <div v-if="showTypePanel" class="type-panel-overlay" @click.self="showTypePanel = false">
-          <div class="type-panel">
-            <h3 class="type-panel-title">{{ t('predict_type.choose_title') }}</h3>
-            <p class="type-panel-balance">
-              {{ t('predict_type.current_balance') }}: <strong>{{ userBalance.toFixed(2) }} Token</strong>
-            </p>
-
-            <div class="type-options">
-              <div
-                class="type-card"
-                :class="{ disabled: userBalance < 2 }"
-                @click="userBalance >= 2 && confirmPredict('normal')"
-              >
-                <div class="type-name">{{ t('predict_type.normal') }}</div>
-                <div class="type-desc">{{ t('predict_type.normal_desc') }}</div>
-                <div class="type-cost">{{ t('predict_type.normal_cost') }}</div>
-                <div class="type-eta">{{ t('predict_type.normal_eta') }}</div>
-              </div>
-
-              <div
-                class="type-card premium"
-                :class="{ disabled: userBalance < 4 }"
-                @click="userBalance >= 4 && confirmPredict('premium')"
-              >
-                <div class="type-name">{{ t('predict_type.premium') }}</div>
-                <div class="type-desc">{{ t('predict_type.premium_desc') }}</div>
-                <div class="type-cost">{{ t('predict_type.premium_cost') }}</div>
-                <div class="type-eta">{{ t('predict_type.premium_eta') }}</div>
-              </div>
-            </div>
-
-            <p v-if="userBalance < 2" class="insufficient-text">{{ t('predict_type.insufficient') }}</p>
-          </div>
-        </div>
       </section>
 
       <!-- ===== PROGRESS 状态 (双栏布局) ===== -->
@@ -317,8 +281,7 @@ import {
   getPredictionResult,
   fetchGameResult,
 } from '../api/prediction'
-import { getBalance } from '../api/deposit'
-import { isLoggedIn, openAuthModal } from '../stores/auth'
+import { isLoggedIn, openAuthModal, openAccountModal } from '../stores/auth'
 import GraphPanel from '../components/GraphPanel.vue'
 import StepCard from '../components/StepCard.vue'
 
@@ -432,10 +395,7 @@ async function fetchEvents() {
   }
 }
 
-// ---- Prediction type selection ----
-const showTypePanel = ref(false)
-const userBalance = ref(0)
-const selectedEvent = ref(null)
+// ---- Game selection → direct prediction ----
 
 async function selectGame(event) {
   // 未登录时弹出登录框
@@ -445,27 +405,10 @@ async function selectGame(event) {
   }
 
   submitError.value = ''
-  selectedEvent.value = event
   activeHome.value = event.home_team.abbreviation
   activeAway.value = event.away_team.abbreviation
   activeGameDate.value = event.game_date || selectedDate.value
   activeGameTime.value = event.game_time || ''
-
-  // 获取余额
-  try {
-    const balRes = await getBalance()
-    userBalance.value = balRes.balance || 0
-  } catch {
-    userBalance.value = 0
-  }
-
-  showTypePanel.value = true
-}
-
-async function confirmPredict(predictionType) {
-  showTypePanel.value = false
-  const event = selectedEvent.value
-  if (!event) return
 
   const payload = {
     home_team: { name: event.home_team.name, abbreviation: event.home_team.abbreviation },
@@ -478,21 +421,20 @@ async function confirmPredict(predictionType) {
     source: 'polymarket',
     lang: locale.value,
     fast_mode: localStorage.getItem('fastMode') === 'true',
-    debate_rounds: parseInt(localStorage.getItem('debateRounds') || '3', 10),
   }
 
   try {
-    const res = await createPrediction(payload, predictionType)
+    const res = await createPrediction(payload)
     taskId.value = res.task_id
     matchupId.value = res.matchup_id
     viewState.value = 'progress'
-    // 持久化活跃任务，防止页面关闭后丢失
     _saveActiveTask()
     startPolling()
   } catch (err) {
     const errData = err?.response?.data
-    if (errData?.error === '余额不足') {
-      submitError.value = t('predict_type.insufficient')
+    if (errData?.error === '额度不足') {
+      submitError.value = t('subscription.insufficient_quota')
+      openAccountModal()
     } else {
       submitError.value = err.message || t('game_select.submit_error')
     }
@@ -696,8 +638,6 @@ function resetToDateSelect() {
   gameResultError.value = ''
   activeGameDate.value = ''
   activeGameTime.value = ''
-  showTypePanel.value = false
-  selectedEvent.value = null
 }
 
 // 导航栏点击"预测"时，query._t 变化 → 重置到选赛页
@@ -1524,116 +1464,6 @@ onMounted(async () => {
   font-size: 0.8rem;
 }
 
-/* ===== Type Selection Panel ===== */
-.type-panel-overlay {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.type-panel {
-  background: var(--white);
-  max-width: 520px;
-  width: 90%;
-  padding: 32px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-}
-
-.type-panel-title {
-  font-family: var(--font-mono);
-  font-size: 1.1rem;
-  font-weight: 700;
-  margin: 0 0 8px 0;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-}
-
-.type-panel-balance {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  color: var(--gray-text);
-  margin: 0 0 24px 0;
-}
-
-.type-panel-balance strong {
-  color: var(--orange);
-}
-
-.type-options {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  margin-bottom: 16px;
-}
-
-.type-card {
-  border: 2px solid var(--border);
-  padding: 20px;
-  cursor: pointer;
-  transition: all 0.2s;
-  text-align: center;
-}
-
-.type-card:hover:not(.disabled) {
-  border-color: var(--black);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-}
-
-.type-card.premium {
-  border-color: var(--orange);
-}
-
-.type-card.premium:hover:not(.disabled) {
-  border-color: var(--orange);
-  box-shadow: 0 2px 12px rgba(255, 69, 0, 0.15);
-}
-
-.type-card.disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.type-name {
-  font-family: var(--font-mono);
-  font-size: 1rem;
-  font-weight: 700;
-  margin-bottom: 8px;
-}
-
-.type-desc {
-  font-size: 0.8rem;
-  color: var(--gray-text);
-  margin-bottom: 12px;
-  line-height: 1.4;
-}
-
-.type-cost {
-  font-family: var(--font-mono);
-  font-size: 0.9rem;
-  font-weight: 700;
-  color: var(--orange);
-}
-
-.type-eta {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: #999;
-  margin-top: 4px;
-}
-
-.insufficient-text {
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
-  color: #CC0000;
-  text-align: center;
-  margin: 0;
-}
-
 /* Responsive */
 @media (max-width: 1024px) {
   .dual-panel { grid-template-columns: 1fr; }
@@ -1644,6 +1474,5 @@ onMounted(async () => {
   .game-grid { grid-template-columns: 1fr; }
   .betting-cards { grid-template-columns: 1fr; }
   .date-picker-row { flex-direction: column; }
-  .type-options { grid-template-columns: 1fr; }
 }
 </style>
