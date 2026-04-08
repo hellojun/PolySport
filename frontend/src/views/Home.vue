@@ -215,7 +215,7 @@
               </div>
             </div>
           </div>
-          <div v-if="canViewTrackRecord" class="track-link-wrap">
+          <div class="track-link-wrap">
             <router-link to="/track-record" class="track-link">
               {{ t('track.view_full') }} &rarr;
             </router-link>
@@ -242,13 +242,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { hasPermission } from '../stores/auth'
 import { getPublicStats } from '../api/prediction'
 
 const { t } = useI18n()
-const canViewTrackRecord = computed(() => hasPermission('track_record'))
 
 const analystKeys = [
   'stats_analyst',
@@ -283,7 +281,6 @@ function formatPct(val) {
 }
 
 onMounted(async () => {
-  if (!canViewTrackRecord.value) return
   try {
     const res = await getPublicStats()
     const data = res.data || res
