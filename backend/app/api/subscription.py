@@ -159,6 +159,18 @@ def verify_payment():
 
         plan = order.plan
         plan_cfg = PLAN_CONFIG[plan]
+        plan_price = Decimal(str(plan_cfg['price']))
+        base_quota = plan_cfg['quota']
+
+        # 超额部分按单次单价折算为额外次数
+        bonus = 0
+        if actual_amount > plan_price:
+            per_cost = plan_price / base_quota
+            bonus = int((actual_amount - plan_price) / per_cost)
+        final_quota = base_quota + bonus
+
+        if bonus:
+            logger.info(f"超额充值: 实付${actual_amount}, 计划${plan_price}, 补充{bonus}次, 总额度{final_quota}")
 
         # 创建/更新订阅
         user = db.session.get(User, user_id)
@@ -170,7 +182,7 @@ def verify_payment():
             sub.period_end = sub.period_end + timedelta(days=30)
             sub.used = 0
             sub.plan = plan
-            sub.quota = plan_cfg['quota']
+            sub.quota = final_quota
             sub.status = 'active'
             sub.updated_at = now
         elif sub:
@@ -179,7 +191,7 @@ def verify_payment():
             sub.status = 'active'
             sub.period_start = now
             sub.period_end = now + timedelta(days=30)
-            sub.quota = plan_cfg['quota']
+            sub.quota = final_quota
             sub.used = 0
             sub.updated_at = now
         else:
@@ -190,7 +202,7 @@ def verify_payment():
                 status='active',
                 period_start=now,
                 period_end=now + timedelta(days=30),
-                quota=plan_cfg['quota'],
+                quota=final_quota,
                 used=0,
             )
             db.session.add(sub)
