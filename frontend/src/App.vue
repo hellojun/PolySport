@@ -9,7 +9,7 @@
       <div class="nav-links">
         <template v-if="loggedIn">
           <a class="nav-link" :class="{ 'router-link-active': $route.path === '/predict' }" @click="goPredict">{{ t('nav.predict') }}</a>
-          <router-link to="/track-record" class="nav-link">{{ t('nav.track_record') }}</router-link>
+          <router-link v-if="canViewTrackRecord" to="/track-record" class="nav-link">{{ t('nav.track_record') }}</router-link>
           <router-link to="/history" class="nav-link">{{ t('nav.history') }}</router-link>
           <button class="lang-switch" @click="toggleLocale">
             {{ locale === 'zh' ? 'EN' : '中' }}
@@ -35,7 +35,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
-import { isLoggedIn, openAuthModal, openAccountModal } from './stores/auth'
+import { isLoggedIn, hasPermission, openAuthModal, openAccountModal } from './stores/auth'
 import AuthModal from './components/AuthModal.vue'
 import AccountModal from './components/AccountModal.vue'
 
@@ -54,6 +54,7 @@ function goPredict() {
 
 // ---- Auth state ----
 const loggedIn = computed(() => isLoggedIn())
+const canViewTrackRecord = computed(() => hasPermission('track_record'))
 
 // ---- Language toggle ----
 function toggleLocale() {

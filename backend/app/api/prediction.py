@@ -228,8 +228,17 @@ def get_public_stats():
 
 
 @prediction_bp.route('/track-record', methods=['GET'])
+@jwt_required()
 def get_track_record():
-    """公开端点：返回完整战绩数据（overview + recent_records + daily_summary）"""
+    """白名单端点：返回完整战绩数据（overview + recent_records + daily_summary）"""
+    from ..models.user import User
+    user_id = int(get_jwt_identity())
+    whitelist = Config.TRACK_RECORD_WHITELIST
+    if whitelist:
+        user = db.session.get(User, user_id)
+        if not user or (user.email or '').lower() not in whitelist:
+            return jsonify({"success": False, "error": "无权访问"}), 403
+
     from ..models.prediction import Prediction
     from collections import defaultdict
 
