@@ -137,18 +137,18 @@ def verify_payment():
         actual_amount = Decimal(str(result['amount']))
         required_price = Decimal(str(PLAN_CONFIG[order.plan]['price']))
 
-        # 金额不足 → 根据实际金额自动匹配可负担的最高计划
-        if actual_amount < required_price:
-            matched_plan = _match_plan_by_amount(actual_amount)
-            if not matched_plan:
-                return jsonify({
-                    "success": False,
-                    "error": f"转账金额 ${actual_amount} 不足以购买任何付费计划（最低 ${PLAN_CONFIG['basic']['price']}）",
-                    "actual_amount": float(actual_amount),
-                    "required": float(required_price),
-                }), 400
-            order.plan = matched_plan
-            logger.info(f"金额不匹配，自动降级: {order.plan} → {matched_plan} (实际 ${actual_amount})")
+        # 根据实际金额匹配最优计划（自动升级或降级）
+        best_plan = _match_plan_by_amount(actual_amount)
+        if not best_plan:
+            return jsonify({
+                "success": False,
+                "error": f"转账金额 ${actual_amount} 不足以购买任何付费计划（最低 ${PLAN_CONFIG['basic']['price']}）",
+                "actual_amount": float(actual_amount),
+                "required": float(required_price),
+            }), 400
+        if best_plan != order.plan:
+            logger.info(f"金额自动匹配: {order.plan} → {best_plan} (实际 ${actual_amount})")
+            order.plan = best_plan
 
         order.tx_hash = tx_hash
         order.from_address = result['from_address']
