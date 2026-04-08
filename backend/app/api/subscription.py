@@ -178,11 +178,12 @@ def verify_payment():
         now = datetime.utcnow()
 
         if sub and sub.is_active:
-            # 有活跃订阅：延长 30 天, 剩余次数累加, plan 更新
+            # 有活跃订阅：到期日=当前+30天, 剩余次数累加, plan 只升不降
             carry_over = max(0, sub.quota - sub.used)
-            sub.period_end = sub.period_end + timedelta(days=30)
+            sub.period_end = now + timedelta(days=30)
             sub.used = 0
-            sub.plan = plan
+            if PLAN_CONFIG[plan]['price'] >= PLAN_CONFIG.get(sub.plan, {}).get('price', 0):
+                sub.plan = plan
             sub.quota = final_quota + carry_over
             sub.status = 'active'
             sub.updated_at = now
