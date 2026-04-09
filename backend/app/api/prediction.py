@@ -201,7 +201,7 @@ def _build_overview(rows):
                 tt_hits += 1
 
     total_with_result = max(ml_total, sp_total, tt_total)
-    insufficient = total_with_result < 5
+    insufficient = total_with_result < 3
 
     return {
         "total_predictions": total_predictions,
