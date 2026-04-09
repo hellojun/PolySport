@@ -322,7 +322,10 @@ class AutoPredictionScheduler:
         from ..utils.hit_calculator import compute_hit_status
         from ..utils.redis_client import get_redis
 
-        today_et = datetime.now(ET).strftime('%Y-%m-%d')
+        now_et = datetime.now(ET)
+        today_et = now_et.strftime('%Y-%m-%d')
+        yesterday_et = (now_et - timedelta(days=1)).strftime('%Y-%m-%d')
+        check_dates = {today_et, yesterday_et}
 
         rows = Prediction.query.filter(
             Prediction.matchup_id.startswith('auto_')
@@ -332,7 +335,7 @@ class AutoPredictionScheduler:
         for pred in rows:
             data = pred.data or {}
             mm = data.get('matchup_meta')
-            if not mm or mm.get('game_date') != today_et:
+            if not mm or mm.get('game_date') not in check_dates:
                 continue
             gr = data.get('game_result')
             if gr and gr.get('game_status_id') == 3 and gr.get('hit_status'):
@@ -340,10 +343,10 @@ class AutoPredictionScheduler:
             candidates.append((pred, mm, data))
 
         if not candidates:
-            logger.info(f"当日回填: 无待处理 ({today_et}, 共 {len(rows)} 条auto记录)")
+            logger.info(f"当日回填: 无待处理 ({yesterday_et}~{today_et}, 共 {len(rows)} 条auto记录)")
             return
 
-        logger.info(f"当日回填: {len(candidates)} 条待检查 ({today_et})")
+        logger.info(f"当日回填: {len(candidates)} 条待检查 ({yesterday_et}~{today_et})")
 
         from .data_fetcher.nba_stats import NBAStatsService
         nba_service = NBAStatsService()
