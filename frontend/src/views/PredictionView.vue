@@ -672,6 +672,10 @@ onMounted(async () => {
     activeGameTime.value = route.query.game_time || ''
     try {
       const res = await getPredictionResult(qMatchupId, 'L1')
+      const meta = res.prediction.matchup_meta || {}
+      if (!activeHome.value) activeHome.value = meta.home || ''
+      if (!activeAway.value) activeAway.value = meta.away || ''
+      if (!activeGameDate.value) activeGameDate.value = meta.game_date || ''
       bettingCard.value = res.prediction.betting_card || []
       if (res.prediction.graph_data) {
         graphData.value = res.prediction.graph_data
