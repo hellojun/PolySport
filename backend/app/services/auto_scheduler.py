@@ -65,8 +65,13 @@ class AutoPredictionScheduler:
         self._scheduler.start()
         logger.info(f"AutoPredictionScheduler 启动: 赛程@{schedule_hour}:00ET, 回填@{backfill_hour}:00ET")
 
-        # 启动时立即执行一次（处理今天剩余比赛）
-        threading.Thread(target=self._daily_schedule_fetch, daemon=True).start()
+        # 启动时立即执行一次（处理今天剩余比赛 + 当日回填）
+        def _startup_tasks():
+            self._daily_schedule_fetch()
+            if Config.AUTO_BACKFILL_ENABLED:
+                self._today_backfill_check()
+
+        threading.Thread(target=_startup_tasks, daemon=True).start()
 
     # ------------------------------------------------------------------
     # 赛程拉取 & 调度预测
