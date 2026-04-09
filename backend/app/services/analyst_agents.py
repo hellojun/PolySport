@@ -251,7 +251,18 @@ IMPORTANT INSTRUCTIONS:
   moneyline_pick (team abbreviation), moneyline_confidence (0.0-1.0),
   spread_pick (e.g. "PHI -5.5"), spread_confidence (0.0-1.0),
   total_pick ("OVER" or "UNDER"), total_confidence (0.0-1.0),
-  reasoning (string, 2-4 sentences), key_factors (array of 2-4 strings)"""
+  reasoning (string, 2-4 sentences), key_factors (array of 2-4 strings)
+
+- For SPREAD: Anchor to the market spread line in the matchup data.
+  Evaluate if the favored team's winning margin is LARGER or SMALLER than the line.
+  Consider recent margin-of-victory trends and scoring stats.
+  spread_confidence = how confident you are that your pick covers.
+
+- For TOTAL: Anchor to the market total line in the matchup data.
+  Key factors: team PPG + OPP PPG averages, recent total-points trends,
+  pace matchup (fast vs slow), defensive efficiency.
+  Evaluate if the line is too HIGH or too LOW.
+  total_confidence = how confident you are in OVER vs UNDER."""
 
     if lang == "zh":
         system_content += """

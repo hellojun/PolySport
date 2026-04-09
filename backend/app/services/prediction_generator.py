@@ -15,6 +15,18 @@ from .analyst_agents import get_analyst_roles
 
 logger = get_logger('mirofish.prediction_generator')
 
+# 按市场差异化分析师权重乘数
+# moneyline 保持默认 1.0，spread/total 让专长分析师主导
+MARKET_WEIGHTS: Dict[str, Dict[str, float]] = {
+    "stats_analyst":       {"moneyline": 1.0, "spread": 1.0, "total": 1.3},
+    "betting_expert":      {"moneyline": 1.0, "spread": 1.3, "total": 1.0},
+    "injury_analyst":      {"moneyline": 1.0, "spread": 0.8, "total": 0.8},
+    "tactical_analyst":    {"moneyline": 1.0, "spread": 1.0, "total": 1.0},
+    "momentum_analyst":    {"moneyline": 1.0, "spread": 0.8, "total": 0.8},
+    "home_court_analyst":  {"moneyline": 1.0, "spread": 0.7, "total": 0.5},
+    "smart_money_analyst": {"moneyline": 1.0, "spread": 1.0, "total": 0.8},
+}
+
 
 @dataclass
 class BettingAdvice:
@@ -151,7 +163,7 @@ class PredictionGenerator:
 
         # --- Moneyline (客队在左) ---
         home_prob = self._compute_home_probability(
-            predictions, "moneyline_pick", "moneyline_confidence", home_abbr
+            predictions, "moneyline_pick", "moneyline_confidence", home_abbr, market="moneyline"
         )
         away_prob = 1 - home_prob
         market_home = mo.get("moneyline_home")
@@ -172,7 +184,7 @@ class PredictionGenerator:
         # --- Spread (客队在左) ---
         spread_line = mo.get("spread_line")
         home_spread_prob = self._compute_home_probability(
-            predictions, "spread_pick", "spread_confidence", home_abbr
+            predictions, "spread_pick", "spread_confidence", home_abbr, market="spread"
         )
         away_spread_prob = 1 - home_spread_prob
         market_spread = mo.get("spread_home")
@@ -193,7 +205,7 @@ class PredictionGenerator:
         ))
 
         # --- Total (OVER/UNDER 视角, 不需要主客区分) ---
-        over_prob = self._compute_over_probability(predictions)
+        over_prob = self._compute_over_probability(predictions, market="total")
         market_over = mo.get("total_over")
         total_line = mo.get("total_line")
         tot_edge = (over_prob - market_over) if market_over is not None else None
@@ -215,11 +227,13 @@ class PredictionGenerator:
 
     def _compute_home_probability(
         self, predictions: list, pick_key: str, conf_key: str, home_abbr: str,
+        market: str = "moneyline",
     ) -> float:
         """
         从分析师投票计算主队概率（加权平均）。
         - 分析师选主队 + confidence c → P(home) += c * weight
         - 分析师选客队 + confidence c → P(home) += (1-c) * weight
+        - weight = role.weight * MARKET_WEIGHTS 乘数
         """
         weighted_sum = 0.0
         total_weight = 0.0
@@ -228,7 +242,9 @@ class PredictionGenerator:
             pick = getattr(pred, pick_key, "")
             conf = getattr(pred, conf_key, 0.5)
             role = self._roles.get(pred.analyst_id)
-            weight = role.weight if role else 1.0
+            base_weight = role.weight if role else 1.0
+            market_mult = MARKET_WEIGHTS.get(pred.analyst_id, {}).get(market, 1.0)
+            weight = base_weight * market_mult
 
             if not pick:
                 continue
@@ -243,7 +259,7 @@ class PredictionGenerator:
             return 0.5
         return max(0.01, min(0.99, weighted_sum / total_weight))
 
-    def _compute_over_probability(self, predictions: list) -> float:
+    def _compute_over_probability(self, predictions: list, market: str = "total") -> float:
         """从分析师投票计算 OVER 概率"""
         weighted_sum = 0.0
         total_weight = 0.0
@@ -252,7 +268,9 @@ class PredictionGenerator:
             pick = getattr(pred, "total_pick", "")
             conf = getattr(pred, "total_confidence", 0.5)
             role = self._roles.get(pred.analyst_id)
-            weight = role.weight if role else 1.0
+            base_weight = role.weight if role else 1.0
+            market_mult = MARKET_WEIGHTS.get(pred.analyst_id, {}).get(market, 1.0)
+            weight = base_weight * market_mult
 
             if not pick:
                 continue

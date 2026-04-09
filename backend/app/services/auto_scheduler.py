@@ -2,6 +2,7 @@
 自动预测调度器
 - 每天美东 08:00 拉取当日赛程，为每场比赛在开赛前 N 分钟注册一次性预测任务
 - 每天美东 14:00 自动回填昨日比赛结果
+- 每 10 分钟检查当日是否有已结束但未回填的比赛，及时更新战绩
 """
 
 import threading
@@ -12,6 +13,7 @@ from zoneinfo import ZoneInfo
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.date import DateTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from ..config import Config
 from ..utils.logger import get_logger
@@ -49,6 +51,14 @@ class AutoPredictionScheduler:
                 self._daily_backfill,
                 CronTrigger(hour=backfill_hour, minute=0, timezone=ET),
                 id='daily_backfill',
+                replace_existing=True,
+            )
+
+            # 每 10 分钟检查当日未回填的比赛结果
+            self._scheduler.add_job(
+                self._today_backfill_check,
+                IntervalTrigger(minutes=10),
+                id='today_backfill_check',
                 replace_existing=True,
             )
 
@@ -288,6 +298,89 @@ class AutoPredictionScheduler:
     # ------------------------------------------------------------------
     # 自动回填
     # ------------------------------------------------------------------
+
+    def _today_backfill_check(self):
+        """每 10 分钟检查当日是否有已结束但未回填的比赛"""
+        try:
+            with self.app.app_context():
+                self._do_today_backfill()
+        except Exception as e:
+            logger.error(f"当日回填检查失败: {e}", exc_info=True)
+
+    def _do_today_backfill(self):
+        """扫描当日（ET）缺 game_result 的自动预测，尝试回填"""
+        import json
+        from sqlalchemy.orm.attributes import flag_modified
+        from ..extensions import db
+        from ..models.prediction import Prediction
+        from ..utils.hit_calculator import compute_hit_status
+        from ..utils.redis_client import get_redis
+
+        today_et = datetime.now(ET).strftime('%Y-%m-%d')
+
+        rows = Prediction.query.filter(
+            Prediction.matchup_id.startswith('auto_')
+        ).all()
+
+        candidates = []
+        for pred in rows:
+            data = pred.data or {}
+            mm = data.get('matchup_meta')
+            if not mm or mm.get('game_date') != today_et:
+                continue
+            gr = data.get('game_result')
+            if gr and gr.get('game_status_id') == 3 and gr.get('hit_status'):
+                continue
+            candidates.append((pred, mm, data))
+
+        if not candidates:
+            return
+
+        logger.info(f"当日回填: {len(candidates)} 条待检查 ({today_et})")
+
+        from .data_fetcher.nba_stats import NBAStatsService
+        nba_service = NBAStatsService()
+        updated = 0
+
+        for pred, mm, data in candidates:
+            home_abbr = mm.get('home')
+            away_abbr = mm.get('away')
+            if not home_abbr or not away_abbr:
+                continue
+
+            try:
+                result = nba_service.fetch_game_result(home_abbr, away_abbr, today_et)
+            except Exception as e:
+                logger.warning(f"当日回填 API 错误 ({pred.matchup_id}): {e}")
+                continue
+
+            if not result or result.get('game_status_id') != 3:
+                continue
+
+            hit_status = compute_hit_status(data, result)
+            result['hit_status'] = hit_status
+            result['fetched_at'] = datetime.now().isoformat()
+
+            data['game_result'] = result
+            pred.data = data
+            flag_modified(pred, 'data')
+            db.session.add(pred)
+
+            try:
+                r = get_redis()
+                key = f"prediction:{pred.matchup_id}"
+                r.set(key, json.dumps(data, ensure_ascii=False), ex=Config.PREDICTION_TTL)
+            except Exception:
+                pass
+
+            updated += 1
+            hit_str = f"{hit_status['hit_count']}/{hit_status['total_markets']}"
+            logger.info(f"当日回填: {pred.matchup_id} → "
+                        f"{result.get('away_score')}-{result.get('home_score')} 命中 {hit_str}")
+
+        if updated:
+            db.session.commit()
+            logger.info(f"当日回填完成: 更新 {updated} 条")
 
     def _daily_backfill(self):
         """回填昨日及更早的自动预测结果"""

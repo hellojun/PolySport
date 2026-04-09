@@ -612,6 +612,8 @@ class NBAStatsService:
             self._append_advanced_text(parts, team_data.get('advanced'), abbr)
             self._append_players_text(parts, team_data.get('players'), abbr)
             self._append_games_text(parts, team_data.get('recent_games'), abbr)
+            scoring_stats = self._derive_scoring_stats(team_data.get('recent_games'), abbr)
+            self._append_scoring_stats_text(parts, scoring_stats, abbr)
             self._append_injuries_text(parts, team_data.get('injuries'), abbr)
             parts.append("")
 
@@ -671,6 +673,48 @@ class NBAStatsService:
             pm = g.get('plus_minus', 0)
             sign = '+' if pm >= 0 else ''
             parts.append(f"  - {date}: {matchup} {result} ({pts} pts, {sign}{pm})")
+
+    @staticmethod
+    def _derive_scoring_stats(games: Optional[List[dict]], abbr: str) -> Optional[dict]:
+        """从 recent_games 派生得分统计（场均得分/失分/总分/净胜分）"""
+        if not games:
+            return None
+        abbr = abbr.upper()
+
+        def _avg(values):
+            return round(sum(values) / len(values), 1) if values else 0.0
+
+        pts_list = [g['pts'] for g in games if isinstance(g.get('pts'), (int, float))]
+        opp_list = [g['opp_pts'] for g in games if isinstance(g.get('opp_pts'), (int, float))]
+        total_list = [g['pts'] + g['opp_pts'] for g in games
+                      if isinstance(g.get('pts'), (int, float)) and isinstance(g.get('opp_pts'), (int, float))]
+        margin_list = [g['plus_minus'] for g in games if isinstance(g.get('plus_minus'), (int, float))]
+
+        stats = {}
+        for n in (5, 10):
+            suffix = f'l{n}'
+            stats[f'ppg_{suffix}'] = _avg(pts_list[:n])
+            stats[f'opp_ppg_{suffix}'] = _avg(opp_list[:n])
+            stats[f'avg_total_{suffix}'] = _avg(total_list[:n])
+            stats[f'avg_margin_{suffix}'] = _avg(margin_list[:n])
+        return stats
+
+    @staticmethod
+    def _append_scoring_stats_text(parts: list, stats: Optional[dict], abbr: str):
+        """将派生得分统计格式化为文本"""
+        if not stats:
+            return
+        parts.append(f"{abbr} Scoring Stats (Derived):")
+        for n in (5, 10):
+            s = f'l{n}'
+            margin = stats.get(f'avg_margin_{s}', 0)
+            sign = '+' if margin >= 0 else ''
+            parts.append(
+                f"  Last {n:>2}: {stats.get(f'ppg_{s}', 0)} PPG, "
+                f"{stats.get(f'opp_ppg_{s}', 0)} OPP, "
+                f"{stats.get(f'avg_total_{s}', 0)} Total, "
+                f"{sign}{margin} Margin"
+            )
 
     @staticmethod
     def _append_injuries_text(parts: list, injuries: Optional[List[dict]], abbr: str):
