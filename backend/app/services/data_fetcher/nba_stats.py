@@ -9,6 +9,9 @@ import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+_ET = ZoneInfo('America/New_York')
 from typing import Optional, List, Dict, Any, Tuple
 
 import requests
@@ -442,9 +445,9 @@ class NBAStatsService:
         """
         home_upper = home_abbr.upper()
         away_upper = away_abbr.upper()
-        today = datetime.now().strftime('%Y-%m-%d')
+        today_et = datetime.now(_ET).strftime('%Y-%m-%d')
 
-        if game_date == today:
+        if game_date == today_et:
             return self._fetch_game_result_scoreboard(home_upper, away_upper)
 
         return self._fetch_game_result_schedule(home_upper, away_upper, game_date)
@@ -493,8 +496,15 @@ class NBAStatsService:
                 at = g.get('awayTeam', {})
                 if ht.get('teamTricode') != home_abbr or at.get('teamTricode') != away_abbr:
                     continue
-                # 匹配日期
-                g_date = (g.get('gameDateEst', '') or '')[:10]
+                # 匹配日期：gameDateEst 格式可能是 "MM/DD/YYYY ..." 或 "YYYY-MM-DD..."
+                raw_date = (g.get('gameDateEst', '') or '').strip()
+                if '/' in raw_date:
+                    try:
+                        g_date = datetime.strptime(raw_date[:10], '%m/%d/%Y').strftime('%Y-%m-%d')
+                    except ValueError:
+                        g_date = raw_date[:10]
+                else:
+                    g_date = raw_date[:10]
                 if g_date != game_date:
                     continue
 
