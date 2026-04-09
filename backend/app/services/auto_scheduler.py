@@ -301,6 +301,7 @@ class AutoPredictionScheduler:
 
     def _today_backfill_check(self):
         """每 10 分钟检查当日是否有已结束但未回填的比赛"""
+        logger.info("当日回填检查: 开始")
         try:
             with self.app.app_context():
                 self._do_today_backfill()
@@ -334,6 +335,7 @@ class AutoPredictionScheduler:
             candidates.append((pred, mm, data))
 
         if not candidates:
+            logger.info(f"当日回填: 无待处理 ({today_et}, 共 {len(rows)} 条auto记录)")
             return
 
         logger.info(f"当日回填: {len(candidates)} 条待检查 ({today_et})")
