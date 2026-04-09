@@ -292,6 +292,7 @@
     "miss": "MISS",
     "push": "PUSH",
     "no_data": "Building track record, stay tuned",
+    "pending": "In Progress",
     "view_full": "View Full Track Record"
   }
 }

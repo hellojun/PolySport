@@ -78,31 +78,38 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(rec, idx) in records" :key="idx">
+                <tr
+                  v-for="(rec, idx) in records"
+                  :key="idx"
+                  class="record-row"
+                  @click="goToDetail(rec.matchup_id)"
+                >
                   <td class="td-date">{{ rec.game_date }}</td>
                   <td class="td-matchup">{{ rec.away }} @ {{ rec.home }}</td>
-                  <td class="td-score">{{ rec.away_score }} - {{ rec.home_score }}</td>
+                  <td class="td-score" v-if="rec.is_finished">{{ rec.away_score }} - {{ rec.home_score }}</td>
+                  <td class="td-pending" v-else>{{ t('track.pending') }}</td>
                   <td>
                     <span class="pick-text">{{ pickLabel(rec.picks?.moneyline) }}</span>
-                    <span :class="hitClass(rec.hit_status?.moneyline_hit)">
+                    <span v-if="rec.is_finished" :class="hitClass(rec.hit_status?.moneyline_hit)">
                       {{ hitLabel(rec.hit_status?.moneyline_hit) }}
                     </span>
                   </td>
                   <td>
                     <span class="pick-text">{{ pickLabel(rec.picks?.spread) }}</span>
-                    <span :class="hitClass(rec.hit_status?.spread_hit)">
+                    <span v-if="rec.is_finished" :class="hitClass(rec.hit_status?.spread_hit)">
                       {{ hitLabel(rec.hit_status?.spread_hit) }}
                     </span>
                   </td>
                   <td>
                     <span class="pick-text">{{ pickLabel(rec.picks?.total) }}</span>
-                    <span :class="hitClass(rec.hit_status?.total_hit)">
+                    <span v-if="rec.is_finished" :class="hitClass(rec.hit_status?.total_hit)">
                       {{ hitLabel(rec.hit_status?.total_hit) }}
                     </span>
                   </td>
-                  <td class="td-hits">
+                  <td class="td-hits" v-if="rec.is_finished">
                     {{ rec.hit_status?.hit_count ?? 0 }}/{{ rec.hit_status?.total_markets ?? 0 }}
                   </td>
+                  <td class="td-pending" v-else>--</td>
                 </tr>
               </tbody>
             </table>
@@ -116,8 +123,11 @@
 <script setup>
 import { ref, onMounted, nextTick, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import * as d3 from 'd3'
 import { getTrackRecord } from '../api/prediction'
+
+const router = useRouter()
 
 const { t, locale } = useI18n()
 
@@ -149,6 +159,12 @@ function hitClass(val) {
   if (val === false) return 'hit-badge hit-badge--miss'
   if (val === 'push') return 'hit-badge hit-badge--push'
   return 'hit-badge'
+}
+
+function goToDetail(matchupId) {
+  if (matchupId) {
+    router.push({ path: '/predict', query: { matchup_id: matchupId } })
+  }
 }
 
 function drawChart() {
@@ -509,8 +525,18 @@ onMounted(fetchData)
   white-space: nowrap;
 }
 
+.record-row {
+  cursor: pointer;
+}
+
 .records-table tbody tr:hover {
   background: var(--gray-light);
+}
+
+.td-pending {
+  color: var(--gray-text);
+  font-size: 0.7rem;
+  font-style: italic;
 }
 
 .td-date {

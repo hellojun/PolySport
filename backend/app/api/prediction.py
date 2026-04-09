@@ -201,7 +201,7 @@ def _build_overview(rows):
                 tt_hits += 1
 
     total_with_result = max(ml_total, sp_total, tt_total)
-    insufficient = total_with_result < 3
+    insufficient = total_predictions < 1
 
     return {
         "total_predictions": total_predictions,
@@ -245,16 +245,12 @@ def get_track_record():
     rows = _auto_predictions_only(Prediction.query.all())
     overview = _build_overview(rows)
 
-    # 收集已结束比赛的详细记录
-    finished = []
+    # 收集所有比赛的详细记录（含未结束）
+    all_records = []
     for pred in rows:
         data = pred.data or {}
-        gr = data.get('game_result')
-        if not gr or gr.get('game_status_id') != 3:
-            continue
         mm = data.get('matchup_meta') or {}
-        hs = gr.get('hit_status') or {}
-        normalize_hit_status(hs)
+        gr = data.get('game_result')
 
         # 提取 betting_card picks
         picks = {}
@@ -265,21 +261,30 @@ def get_track_record():
                 "model_probability": card.get('model_probability'),
             }
 
-        finished.append({
+        is_finished = gr and gr.get('game_status_id') == 3
+        hs = {}
+        if is_finished:
+            hs = gr.get('hit_status') or {}
+            normalize_hit_status(hs)
+
+        all_records.append({
+            "matchup_id": pred.matchup_id,
             "game_date": mm.get('game_date', ''),
             "home": mm.get('home', ''),
             "away": mm.get('away', ''),
-            "home_score": gr.get('home_score'),
-            "away_score": gr.get('away_score'),
+            "home_score": gr.get('home_score') if gr else None,
+            "away_score": gr.get('away_score') if gr else None,
             "picks": picks,
             "hit_status": hs,
+            "is_finished": is_finished,
         })
 
     # 按 game_date 降序排序，取最近 30 场
-    finished.sort(key=lambda x: x['game_date'], reverse=True)
-    recent_records = finished[:30]
+    all_records.sort(key=lambda x: x['game_date'], reverse=True)
+    recent_records = all_records[:30]
 
-    # 按日汇总最近 30 天
+    # 按日汇总最近 30 天（仅已结束比赛）
+    finished = [r for r in all_records if r['is_finished']]
     daily = defaultdict(lambda: {"predictions": 0, "hits": 0, "total_markets": 0})
     for rec in finished:
         d = rec['game_date']
