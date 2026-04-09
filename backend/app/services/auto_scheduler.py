@@ -106,7 +106,14 @@ class AutoPredictionScheduler:
         game_dates = schedule.get('leagueSchedule', {}).get('gameDates', [])
         for gd in game_dates:
             for g in gd.get('games', []):
-                g_date = (g.get('gameDateEst', '') or '')[:10]
+                raw_date = (g.get('gameDateEst', '') or '').strip()
+                if '/' in raw_date:
+                    try:
+                        g_date = datetime.strptime(raw_date[:10], '%m/%d/%Y').strftime('%Y-%m-%d')
+                    except ValueError:
+                        g_date = raw_date[:10]
+                else:
+                    g_date = raw_date[:10]
                 if g_date != today_et:
                     continue
                 # 跳过季前赛/全明星
@@ -358,8 +365,9 @@ class AutoPredictionScheduler:
             if not home_abbr or not away_abbr:
                 continue
 
+            game_date = mm.get('game_date')
             try:
-                result = nba_service.fetch_game_result(home_abbr, away_abbr, today_et)
+                result = nba_service.fetch_game_result(home_abbr, away_abbr, game_date)
             except Exception as e:
                 logger.warning(f"当日回填 API 错误 ({pred.matchup_id}): {e}")
                 continue
