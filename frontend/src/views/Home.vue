@@ -10,8 +10,8 @@
         <span class="particle p2">SPREAD -3.5</span>
         <span class="particle p3">O/U 218.5</span>
         <span class="particle p4">7 ANALYSTS</span>
-        <span class="particle p5">3 ROUNDS</span>
-        <span class="particle p6">21 LLM CALLS</span>
+        <span class="particle p5">2 ROUNDS</span>
+        <span class="particle p6">14 LLM CALLS</span>
       </div>
 
       <div class="hero-inner">
@@ -39,12 +39,12 @@
           </div>
           <div class="hero-stat-divider"></div>
           <div class="hero-stat">
-            <span class="hero-stat-val">3</span>
+            <span class="hero-stat-val">2</span>
             <span class="hero-stat-lbl">{{ t('home.hero_rounds') }}</span>
           </div>
           <div class="hero-stat-divider"></div>
           <div class="hero-stat">
-            <span class="hero-stat-val">21</span>
+            <span class="hero-stat-val">14</span>
             <span class="hero-stat-lbl">{{ t('home.hero_llm_calls') }}</span>
           </div>
         </div>
@@ -62,7 +62,7 @@
     </section>
 
     <!-- ===== Section 2: Sports ===== -->
-    <section class="section sports-section">
+    <section id="sports" class="section sports-section">
       <div class="container">
         <div class="section-header">
           <h2 class="section-title">{{ t('home.sports_title') }}</h2>
@@ -120,7 +120,7 @@
     </section>
 
     <!-- ===== Section 3: How It Works ===== -->
-    <section class="section how-section">
+    <section id="how-it-works" class="section how-section">
       <div class="container">
         <div class="section-header">
           <h2 class="section-title">{{ t('home.how_title') }}</h2>
@@ -149,7 +149,7 @@
         <div class="debate-demo">
           <div class="debate-demo-header">
             <h3 class="sub-title">{{ t('home.analysts_title') }}</h3>
-            <span class="debate-formula">7 &times; 3 = 21 LLM</span>
+            <span class="debate-formula">7 &times; 2 = 14 LLM</span>
           </div>
           <div class="analysts-grid">
             <div
@@ -170,7 +170,7 @@
     </section>
 
     <!-- ===== Section 4: Track Record ===== -->
-    <section class="section track-section">
+    <section id="track-record" class="section track-section">
       <div class="container">
         <div class="section-header">
           <h2 class="section-title">{{ t('home.track_title') }}</h2>
@@ -224,7 +224,22 @@
       </div>
     </section>
 
-    <!-- ===== Section 5: Footer CTA ===== -->
+    <!-- ===== Section 5: FAQ ===== -->
+    <section id="faq" class="section faq-section">
+      <div class="container">
+        <div class="section-header">
+          <h2 class="section-title">{{ t('home.faq_title') }}</h2>
+        </div>
+        <div class="faq-list">
+          <details v-for="i in 5" :key="i" class="faq-item">
+            <summary class="faq-question">{{ t(`home.faq_${i}_q`) }}</summary>
+            <p class="faq-answer">{{ t(`home.faq_${i}_a`) }}</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Section 6: Footer CTA ===== -->
     <footer class="footer-cta">
       <div class="container footer-inner">
         <span class="footer-tag">{{ t('home.tag') }}</span>
@@ -263,7 +278,7 @@ const analystKeys = [
 const pipelineSteps = [
   { title: 'home.step1_title', desc: 'home.step1_desc', tags: ['NBA API', 'Polymarket', 'On-Chain'] },
   { title: 'home.step2_title', desc: 'home.step2_desc', tags: ['Zep', '10 Entities', '8 Relations'] },
-  { title: 'home.step3_title', desc: 'home.step3_desc', tags: ['7 Agents', '3 Rounds', 'LLM'] },
+  { title: 'home.step3_title', desc: 'home.step3_desc', tags: ['7 Agents', '2 Rounds', 'LLM'] },
   { title: 'home.step4_title', desc: 'home.step4_desc', tags: ['ML', 'Spread', 'Total'] },
 ]
 
@@ -972,6 +987,74 @@ onMounted(async () => {
 
 .track-link:hover {
   opacity: 0.7;
+}
+
+/* ===== FAQ ===== */
+.faq-section {
+  background: var(--gray-light);
+}
+
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.faq-item {
+  border: 1px solid var(--border);
+  border-bottom: none;
+  background: var(--white);
+}
+
+.faq-item:last-child {
+  border-bottom: 1px solid var(--border);
+}
+
+.faq-item[open] {
+  border-left: 3px solid var(--orange);
+}
+
+.faq-question {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  padding: 20px 24px;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  transition: color 0.2s;
+}
+
+.faq-question::-webkit-details-marker {
+  display: none;
+}
+
+.faq-question::after {
+  content: '+';
+  font-size: 1.1rem;
+  font-weight: 400;
+  color: var(--gray-text);
+  transition: transform 0.2s;
+}
+
+.faq-item[open] .faq-question::after {
+  content: '−';
+  color: var(--orange);
+}
+
+.faq-question:hover {
+  color: var(--orange);
+}
+
+.faq-answer {
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  color: var(--gray-text);
+  line-height: 1.8;
+  padding: 0 24px 20px;
+  margin: 0;
 }
 
 /* ===== Footer CTA ===== */

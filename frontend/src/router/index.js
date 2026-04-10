@@ -9,24 +9,26 @@ const routes = [
   {
     path: '/',
     name: 'Home',
-    component: Home
+    component: Home,
+    meta: { title: 'PolySport — AI NBA Prediction Engine', description: 'AI-powered NBA game prediction using multi-agent debate, knowledge graphs, and on-chain smart money from Polymarket.' }
   },
   {
     path: '/predict',
     name: 'Prediction',
-    component: PredictionView
+    component: PredictionView,
+    meta: { title: 'NBA Game Prediction | PolySport', description: 'Select an NBA game and get AI-powered predictions with multi-agent debate analysis.' }
   },
   {
     path: '/track-record',
     name: 'TrackRecord',
     component: TrackRecordView,
-    meta: { auth: true, permission: 'track_record' }
+    meta: { auth: true, permission: 'track_record', title: 'Track Record | PolySport', description: 'Verified prediction track record — moneyline, spread, and totals hit rates for NBA games.' }
   },
   {
     path: '/history',
     name: 'History',
     component: HistoryView,
-    meta: { auth: true }
+    meta: { auth: true, title: 'Prediction History | PolySport', description: 'View your past NBA game prediction records and results.' }
   }
 ]
 
@@ -45,6 +47,14 @@ router.beforeEach((to, from, next) => {
     return next('/')
   }
   next()
+})
+
+router.afterEach((to) => {
+  document.title = to.meta.title || 'PolySport'
+  const descEl = document.querySelector('meta[name="description"]')
+  if (descEl) {
+    descEl.setAttribute('content', to.meta.description || '')
+  }
 })
 
 export default router

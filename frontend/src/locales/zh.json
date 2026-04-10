@@ -221,7 +221,7 @@
     "step2_title": "知识图谱",
     "step2_desc": "构建 NBA 本体图谱（球队/球员/伤病/对阵）",
     "step3_title": "AI 辩论",
-    "step3_desc": "7 位分析师 × 3 轮辩论 = 21 次 LLM 调用",
+    "step3_desc": "7 位分析师 × 2 轮辩论 = 14 次 LLM 调用",
     "step4_title": "生成预测",
     "step4_desc": "加权共识输出胜负/让分/总分预测",
     "analysts_title": "分析师面板",
@@ -234,7 +234,18 @@
     "insufficient_data": "数据积累中，敬请期待",
     "footer_cta_text": "准备好用 AI 预测下一场比赛了吗？",
     "footer_cta_btn": "立即开始",
-    "copyright": "© 2025 PolySport. All rights reserved."
+    "copyright": "© 2025 PolySport. All rights reserved.",
+    "faq_title": "常见问题",
+    "faq_1_q": "PolySport 是什么？",
+    "faq_1_a": "PolySport 是一个 AI 驱动的体育预测引擎，结合多智能体辩论、知识图谱和 Polymarket 链上聪明钱数据，预测 NBA 比赛的胜负、让分和总分。",
+    "faq_2_q": "预测准确率如何？",
+    "faq_2_a": "PolySport 维护公开的验证战绩页面，胜负命中率通常超过 90%，让分和总分准确率超过 65%。所有结果均通过 NBA 实际比赛数据验证。",
+    "faq_3_q": "使用了哪些数据源？",
+    "faq_3_a": "我们整合了实时 NBA API 数据（球队统计、球员表现、伤病报告）、Polymarket 预测市场盘口，以及链上聪明钱钱包追踪，构建全面的比赛分析。",
+    "faq_4_q": "什么是多智能体辩论？",
+    "faq_4_a": "PolySport 使用 7 位各具认知偏差的 AI 分析师，进行 2 轮结构化辩论。这种机制产生加权共识预测，而非依赖单一模型。",
+    "faq_5_q": "什么是链上聪明钱？",
+    "faq_5_a": "链上聪明钱指追踪 Polymarket 区块链预测市场上高胜率钱包的持仓方向。PolySport 分析其建仓时间和仓位大小，以判断知情资金对比赛结果的信心程度。"
   },
   "team": {
     "ATL": "老鹰", "BOS": "凯尔特人", "BKN": "篮网",

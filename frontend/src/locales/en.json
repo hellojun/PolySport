@@ -221,7 +221,7 @@
     "step2_title": "Knowledge Graph",
     "step2_desc": "Build NBA ontology graph (teams/players/injuries/matchups)",
     "step3_title": "AI Debate",
-    "step3_desc": "7 analysts × 3 rounds = 21 LLM calls",
+    "step3_desc": "7 analysts × 2 rounds = 14 LLM calls",
     "step4_title": "Generate Prediction",
     "step4_desc": "Weighted consensus for moneyline/spread/total predictions",
     "analysts_title": "Analyst Panel",
@@ -234,7 +234,18 @@
     "insufficient_data": "Building track record, stay tuned",
     "footer_cta_text": "Ready to predict the next game with AI?",
     "footer_cta_btn": "Get Started",
-    "copyright": "© 2025 PolySport. All rights reserved."
+    "copyright": "© 2025 PolySport. All rights reserved.",
+    "faq_title": "FAQ",
+    "faq_1_q": "What is PolySport?",
+    "faq_1_a": "PolySport is an AI-powered sports prediction engine that combines multi-agent debate, knowledge graphs, and on-chain smart money data from Polymarket to predict NBA game outcomes — moneyline, spread, and totals.",
+    "faq_2_q": "How accurate are the predictions?",
+    "faq_2_a": "PolySport maintains a public verified track record. Moneyline hit rates typically exceed 90%, with spread and totals accuracy above 65%. All results are verified against actual NBA game outcomes.",
+    "faq_3_q": "What data sources are used?",
+    "faq_3_a": "We combine real-time NBA API data (team stats, player performance, injury reports), Polymarket prediction market odds, and on-chain smart money wallet tracking for comprehensive game analysis.",
+    "faq_4_q": "What is multi-agent debate?",
+    "faq_4_a": "PolySport uses 7 specialized AI analyst agents — each with unique cognitive biases — who debate across 2 rounds. This structured mechanism produces a weighted consensus prediction rather than relying on a single model.",
+    "faq_5_q": "What is on-chain smart money?",
+    "faq_5_a": "On-chain smart money refers to tracking high-performing wallets on Polymarket's blockchain-based prediction market. PolySport analyzes their position sizing, entry timing, and directional bets to gauge informed conviction on game outcomes."
   },
   "team": {
     "ATL": "Hawks", "BOS": "Celtics", "BKN": "Nets",

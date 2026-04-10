@@ -1,7 +1,7 @@
 <template>
   <div id="app-shell">
     <!-- 全局导航栏 -->
-    <nav class="navbar">
+    <nav class="navbar" aria-label="Main navigation">
       <router-link to="/" class="nav-brand">
         <img src="/favicon.svg" alt="NBA" class="nav-logo" />
         <span>PolySport</span>
@@ -27,7 +27,9 @@
 
     <AuthModal />
     <AccountModal />
-    <router-view />
+    <main id="main-content">
+      <router-view />
+    </main>
   </div>
 </template>
 
