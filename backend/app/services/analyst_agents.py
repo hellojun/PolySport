@@ -220,6 +220,7 @@ def build_analyst_prompt(
     previous_predictions: Optional[List[Dict[str, Any]]] = None,
     lang: str = "en",
     extra_context: Optional[str] = None,
+    force_contrarian: bool = False,
 ) -> List[Dict[str, str]]:
     """
     为分析师构建LLM消息数组
@@ -277,6 +278,22 @@ IMPORTANT INSTRUCTIONS:
 - If you change, explain WHY. If you don't change, briefly note why you stand firm.""".format(
             round_num=round_num
         )
+
+    # 魔鬼代言人指令注入
+    if force_contrarian and previous_predictions:
+        from collections import Counter
+        ml_picks = [p.get("moneyline_pick", "") for p in previous_predictions if p.get("moneyline_pick")]
+        if ml_picks:
+            counter = Counter(ml_picks)
+            majority_pick = counter.most_common(1)[0][0]
+            minority_pick = counter.most_common()[-1][0] if len(counter) > 1 else "the other team"
+            system_content += f"""
+
+CRITICAL OVERRIDE - DEVIL'S ADVOCATE ROLE:
+You MUST argue for {minority_pick} and build the strongest possible case against {majority_pick}.
+Challenge the assumptions made by the majority. Point out blind spots, overlooked risks, and stress-test the consensus.
+Your job this round is to find every reason why {majority_pick} could LOSE. Be thorough and compelling.
+Set changed_from_previous to true and explain your contrarian reasoning in change_reasoning."""
 
     user_parts = [
         f"## NBA Game Analysis - Round {round_num}/3\n",

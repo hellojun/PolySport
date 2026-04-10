@@ -91,6 +91,30 @@ def _classify_recommendation(edge: Optional[float]) -> str:
     return "no_edge"
 
 
+# ── 市场赔率校准 ──
+MARKET_CALIBRATION_THRESHOLD = 0.12    # 分歧超过此值触发校准
+MARKET_CALIBRATION_MAX_BLEND = 0.40    # 最大拉动力度
+
+
+def _calibrate_with_market(raw_prob: float, market_prob: Optional[float]) -> float:
+    """
+    当模型概率与市场概率分歧较大时，向市场方向拉回。
+    - 分歧 <= THRESHOLD: 不校准
+    - 分歧 THRESHOLD ~ 0.35: 线性插值 blend 从 0.15 到 MAX_BLEND
+    - blend 公式: calibrated = raw * (1 - blend) + market * blend
+    """
+    if market_prob is None:
+        return raw_prob
+    divergence = abs(raw_prob - market_prob)
+    if divergence <= MARKET_CALIBRATION_THRESHOLD:
+        return raw_prob
+    # 线性插值: divergence 从 0.12 到 0.35 → blend 从 0.15 到 MAX_BLEND
+    t = min((divergence - MARKET_CALIBRATION_THRESHOLD) / (0.35 - MARKET_CALIBRATION_THRESHOLD), 1.0)
+    blend = 0.15 + t * (MARKET_CALIBRATION_MAX_BLEND - 0.15)
+    calibrated = raw_prob * (1 - blend) + market_prob * blend
+    return max(0.01, min(0.99, calibrated))
+
+
 class PredictionGenerator:
     """
     预测生成器
@@ -165,8 +189,9 @@ class PredictionGenerator:
         home_prob = self._compute_home_probability(
             predictions, "moneyline_pick", "moneyline_confidence", home_abbr, market="moneyline"
         )
-        away_prob = 1 - home_prob
         market_home = mo.get("moneyline_home")
+        home_prob = _calibrate_with_market(home_prob, market_home)
+        away_prob = 1 - home_prob
         market_away = (1 - market_home) if market_home is not None else None
         ml_edge = (away_prob - market_away) if market_away is not None else None
         cards.append(BettingAdvice(
@@ -186,8 +211,9 @@ class PredictionGenerator:
         home_spread_prob = self._compute_home_probability(
             predictions, "spread_pick", "spread_confidence", home_abbr, market="spread"
         )
-        away_spread_prob = 1 - home_spread_prob
         market_spread = mo.get("spread_home")
+        home_spread_prob = _calibrate_with_market(home_spread_prob, market_spread)
+        away_spread_prob = 1 - home_spread_prob
         market_away_spread = (1 - market_spread) if market_spread is not None else None
         sp_edge = (away_spread_prob - market_away_spread) if market_away_spread is not None else None
         away_label = f"{away_abbr} {-spread_line:+.1f}" if spread_line is not None else away_abbr
@@ -207,6 +233,7 @@ class PredictionGenerator:
         # --- Total (OVER/UNDER 视角, 不需要主客区分) ---
         over_prob = self._compute_over_probability(predictions, market="total")
         market_over = mo.get("total_over")
+        over_prob = _calibrate_with_market(over_prob, market_over)
         total_line = mo.get("total_line")
         tot_edge = (over_prob - market_over) if market_over is not None else None
         over_label = f"OVER {total_line}" if total_line is not None else "OVER"

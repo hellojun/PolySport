@@ -105,6 +105,13 @@ class DebateEngine:
             round_start = time.time()
             round_result = DebateRound(round_num=round_num)
 
+            # 最后一轮: 选出魔鬼代言人打破回音室
+            contrarian_ids = set()
+            if round_num == self.num_rounds and previous_round_predictions:
+                contrarian_ids = self._select_contrarians(previous_round_predictions)
+                if contrarian_ids:
+                    logger.info(f"Round {round_num} 魔鬼代言人: {contrarian_ids}")
+
             if progress_callback:
                 analyst_count = len(self.roles)
                 msg = (f"Round {round_num}/{self.num_rounds} - {analyst_count}位分析师并行分析中..."
@@ -126,6 +133,7 @@ class DebateEngine:
                         previous_predictions=previous_round_predictions,
                         lang=lang,
                         extra_context=extra,
+                        force_contrarian=role.id in contrarian_ids,
                     )
                     futures[future] = role
 
@@ -182,6 +190,7 @@ class DebateEngine:
         previous_predictions: Optional[List[Dict[str, Any]]],
         lang: str = "en",
         extra_context: Optional[str] = None,
+        force_contrarian: bool = False,
     ) -> AnalystPrediction:
         """调用单个分析师LLM"""
         messages = build_analyst_prompt(
@@ -192,6 +201,7 @@ class DebateEngine:
             previous_predictions=previous_predictions,
             lang=lang,
             extra_context=extra_context,
+            force_contrarian=force_contrarian,
         )
 
         response = self.llm.chat_json(
@@ -214,3 +224,36 @@ class DebateEngine:
             changed_from_previous=response.get("changed_from_previous", False),
             change_reasoning=response.get("change_reasoning", ""),
         )
+
+    def _select_contrarians(self, previous_predictions: List[Dict[str, Any]]) -> set:
+        """
+        从上一轮预测中选出 2 个魔鬼代言人。
+        逻辑：统计 moneyline_pick 多数派，当多数 >= 4 人时，
+        从多数派中选 confidence 最高的 2 人作为 contrarian。
+        """
+        from collections import Counter
+        picks = [(p["analyst_id"], p.get("moneyline_pick", ""), p.get("moneyline_confidence", 0.5))
+                 for p in previous_predictions if p.get("moneyline_pick")]
+        if not picks:
+            return set()
+
+        counter = Counter(pick for _, pick, _ in picks)
+        majority_pick, majority_count = counter.most_common(1)[0]
+
+        # 仅当多数派 >= 4 人时触发（强共识才需要打破）
+        if majority_count < 4:
+            return set()
+
+        # 从多数派中选 confidence 最高的 2 人
+        majority_analysts = [
+            (aid, conf) for aid, pick, conf in picks if pick == majority_pick
+        ]
+        majority_analysts.sort(key=lambda x: x[1], reverse=True)
+        contrarian_ids = {aid for aid, _ in majority_analysts[:2]}
+
+        minority_pick = counter.most_common()[-1][0] if len(counter) > 1 else "the opposite side"
+        logger.info(
+            f"回音室检测: {majority_count}/{len(picks)} 选择 {majority_pick}, "
+            f"指定 {contrarian_ids} 为魔鬼代言人 (argue for {minority_pick})"
+        )
+        return contrarian_ids

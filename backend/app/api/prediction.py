@@ -252,13 +252,22 @@ def get_track_record():
         mm = data.get('matchup_meta') or {}
         gr = data.get('game_result')
 
-        # 提取 betting_card picks
+        # 提取 betting_card picks（根据 model_probability 选择正确方向）
         picks = {}
         for card in data.get('betting_card', []):
             market = card.get('market', '')
+            model_prob = card.get('model_probability')
+            raw_pick = card.get('pick', '')
+            opp_pick = card.get('opponent_pick', '')
+            # pick 固定是客队/OVER 视角，model_prob > 0.5 表示模型选客队/OVER
+            # model_prob <= 0.5 表示模型选主队/UNDER，此时应显示 opponent_pick
+            if model_prob is not None and model_prob <= 0.5:
+                display_pick = opp_pick if opp_pick else raw_pick
+            else:
+                display_pick = raw_pick
             picks[market] = {
-                "pick": card.get('pick', ''),
-                "model_probability": card.get('model_probability'),
+                "pick": display_pick,
+                "model_probability": model_prob,
             }
 
         is_finished = gr and gr.get('game_status_id') == 3
