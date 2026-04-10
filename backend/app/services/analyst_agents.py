@@ -296,7 +296,7 @@ Your job this round is to find every reason why {majority_pick} could LOSE. Be t
 Set changed_from_previous to true and explain your contrarian reasoning in change_reasoning."""
 
     user_parts = [
-        f"## NBA Game Analysis - Round {round_num}/3\n",
+        f"## NBA Game Analysis - Round {round_num}/{Config.DEBATE_NUM_ROUNDS}\n",
         f"### Matchup Data\n{matchup_text}\n",
     ]
 

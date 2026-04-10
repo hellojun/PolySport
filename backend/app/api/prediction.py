@@ -745,7 +745,7 @@ def _prediction_worker(app, task_id: str, matchup: MatchupInput, lang: str = "en
     # 多语言进度消息模板
     from ..services.analyst_agents import get_analyst_roles as _get_roles
     _num_analysts = len(_get_roles())
-    _total_llm = _num_analysts * 3
+    _total_llm = _num_analysts * Config.DEBATE_NUM_ROUNDS
 
     _msg = {
         "zh": {
@@ -776,7 +776,7 @@ def _prediction_worker(app, task_id: str, matchup: MatchupInput, lang: str = "en
             "step5_title": "图谱构建完成",
             "step5_desc": "提取图谱节点与关系，生成可视化数据",
             "step6_title": "辩论分析",
-            "step6_desc": f"{_num_analysts} 位分析师 × 3 轮辩论 = {_total_llm} 次 LLM 调用",
+            "step6_desc": f"{_num_analysts} 位分析师 × {Config.DEBATE_NUM_ROUNDS} 轮辩论 = {_total_llm} 次 LLM 调用",
             "step7_title": "生成预测结果",
             "step7_desc": "综合辩论结果生成最终预测",
         },
@@ -808,7 +808,7 @@ def _prediction_worker(app, task_id: str, matchup: MatchupInput, lang: str = "en
             "step5_title": "Graph Build Complete",
             "step5_desc": "Extract graph nodes and relations, generate visualization data",
             "step6_title": "Debate Analysis",
-            "step6_desc": f"{_num_analysts} analysts × 3 rounds = {_total_llm} LLM calls",
+            "step6_desc": f"{_num_analysts} analysts × {Config.DEBATE_NUM_ROUNDS} rounds = {_total_llm} LLM calls",
             "step7_title": "Generate Predictions",
             "step7_desc": "Synthesize debate results into final prediction",
         },
