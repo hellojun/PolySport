@@ -111,7 +111,7 @@ class Config:
     # 自动预测
     AUTO_PREDICT_ENABLED = os.environ.get('AUTO_PREDICT_ENABLED', 'true').lower() == 'true'
     AUTO_PREDICT_MINUTES_BEFORE = int(os.environ.get('AUTO_PREDICT_MINUTES_BEFORE', '30'))
-    AUTO_PREDICT_LANG = 'en'
+    AUTO_PREDICT_LANG = 'zh'
     AUTO_PREDICT_MAX_CONCURRENT = int(os.environ.get('AUTO_PREDICT_MAX_CONCURRENT', '3'))
     AUTO_PREDICT_SCHEDULE_HOUR = int(os.environ.get('AUTO_PREDICT_SCHEDULE_HOUR', '8'))  # ET
     SYSTEM_USER_EMAIL = os.environ.get('SYSTEM_USER_EMAIL', 'system@polysport.ai')
