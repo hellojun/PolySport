@@ -1,9 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { isLoggedIn, hasPermission } from '../stores/auth'
 import Home from '../views/Home.vue'
-import PredictionView from '../views/PredictionView.vue'
-import HistoryView from '../views/HistoryView.vue'
-import TrackRecordView from '../views/TrackRecordView.vue'
+
+const PredictionView = () => import('../views/PredictionView.vue')
+const HistoryView = () => import('../views/HistoryView.vue')
+const TrackRecordView = () => import('../views/TrackRecordView.vue')
 
 const routes = [
   {

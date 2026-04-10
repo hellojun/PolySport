@@ -30,6 +30,9 @@ if [[ "$MODE" == "--full" || "$MODE" == "--frontend" ]]; then
     echo "==> Building frontend..."
     cd frontend && npm ci && npm run build && cd ..
 
+    echo "==> Prerendering pages for SEO..."
+    node scripts/prerender.mjs || echo "WARNING: Prerender failed, continuing without prerendered pages"
+
     echo "==> Deploying frontend static files..."
     sudo rm -rf /var/www/polysport
     sudo cp -r frontend/dist /var/www/polysport

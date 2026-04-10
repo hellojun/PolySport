@@ -18,6 +18,7 @@
         <span class="hero-tag">{{ t('home.tag') }}</span>
         <h1 class="hero-title">{{ t('home.title') }}</h1>
         <p class="hero-subtitle">{{ t('home.subtitle') }}</p>
+        <p class="hero-detail">{{ t('home.hero_detail') }}</p>
 
         <!-- Social links -->
         <div class="hero-social">
@@ -231,7 +232,7 @@
           <h2 class="section-title">{{ t('home.faq_title') }}</h2>
         </div>
         <div class="faq-list">
-          <details v-for="i in 5" :key="i" class="faq-item">
+          <details v-for="i in 8" :key="i" class="faq-item">
             <summary class="faq-question">{{ t(`home.faq_${i}_q`) }}</summary>
             <p class="faq-answer">{{ t(`home.faq_${i}_a`) }}</p>
           </details>
@@ -461,6 +462,15 @@ onMounted(async () => {
   color: #999;
   max-width: 580px;
   line-height: 1.7;
+}
+
+.hero-detail {
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  color: #777;
+  max-width: 620px;
+  line-height: 1.8;
+  margin: 0;
 }
 
 .hero-social {
