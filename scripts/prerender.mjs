@@ -10,7 +10,8 @@
 import { createServer } from 'http'
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
 import { resolve, join, dirname } from 'path'
-import { fileURLToPath } from 'url'
+import { fileURLToPath, pathToFileURL } from 'url'
+import { createRequire } from 'module'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DIST = resolve(__dirname, '../frontend/dist')
@@ -82,12 +83,14 @@ async function main() {
     process.exit(1)
   }
 
-  // Dynamic import puppeteer-core
+  // Resolve puppeteer-core from frontend/node_modules
   let puppeteer
   try {
-    puppeteer = await import('puppeteer-core')
+    const frontendRequire = createRequire(resolve(__dirname, '../frontend/package.json'))
+    const puppeteerCjsPath = frontendRequire.resolve('puppeteer-core')
+    puppeteer = await import(pathToFileURL(puppeteerCjsPath).href)
   } catch {
-    console.error('Error: puppeteer-core not installed. Run: npm i -D puppeteer-core')
+    console.error('Error: puppeteer-core not installed. Run: cd frontend && npm i -D puppeteer-core')
     process.exit(1)
   }
 
