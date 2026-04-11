@@ -1,6 +1,6 @@
 """
 自动预测调度器
-- 每天美东 08:00 拉取当日赛程，为每场比赛在开赛前 N 分钟注册一次性预测任务
+- 每天北京时间 22:00 拉取当日赛程，并行预测所有比赛（最多 5 并发）
 - 每天美东 14:00 自动回填昨日比赛结果
 - 每 10 分钟检查当日是否有已结束但未回填的比赛，及时更新战绩
 """
@@ -21,6 +21,7 @@ from ..utils.logger import get_logger
 logger = get_logger('mirofish.auto_scheduler')
 
 ET = ZoneInfo('America/New_York')
+BJT = ZoneInfo('Asia/Shanghai')
 
 
 class AutoPredictionScheduler:
@@ -29,19 +30,19 @@ class AutoPredictionScheduler:
     def __init__(self, app):
         self.app = app
         self._scheduler = BackgroundScheduler(daemon=True)
-        self._scheduled_games: set = set()  # 防重复调度
+        self._predicted_games: set = set()  # 防重复预测
         self._semaphore = threading.Semaphore(Config.AUTO_PREDICT_MAX_CONCURRENT)
 
     def start(self):
-        """启动调度器，注册 cron 任务并立即执行一次赛程拉取"""
-        schedule_hour = Config.AUTO_PREDICT_SCHEDULE_HOUR
+        """启动调度器，注册 cron 任务"""
+        trigger_hour = Config.AUTO_PREDICT_TRIGGER_HOUR_BJT
         backfill_hour = Config.AUTO_BACKFILL_HOUR
 
-        # 每天美东 schedule_hour:00 拉取当日赛程
+        # 每天北京时间 trigger_hour:00 批量预测当日所有比赛
         self._scheduler.add_job(
-            self._daily_schedule_fetch,
-            CronTrigger(hour=schedule_hour, minute=0, timezone=ET),
-            id='daily_schedule_fetch',
+            self._daily_batch_predict,
+            CronTrigger(hour=trigger_hour, minute=0, timezone=BJT),
+            id='daily_batch_predict',
             replace_existing=True,
         )
 
@@ -63,33 +64,61 @@ class AutoPredictionScheduler:
             )
 
         self._scheduler.start()
-        logger.info(f"AutoPredictionScheduler 启动: 赛程@{schedule_hour}:00ET, 回填@{backfill_hour}:00ET")
+        logger.info(f"AutoPredictionScheduler 启动: 预测@{trigger_hour}:00BJT, 回填@{backfill_hour}:00ET, 并发={Config.AUTO_PREDICT_MAX_CONCURRENT}")
 
-        # 启动时立即执行一次（处理今天剩余比赛 + 当日回填）
+        # 启动时立即执行一次（补漏 + 回填）
         def _startup_tasks():
-            self._daily_schedule_fetch()
+            self._daily_batch_predict()
             if Config.AUTO_BACKFILL_ENABLED:
                 self._today_backfill_check()
 
         threading.Thread(target=_startup_tasks, daemon=True).start()
 
     # ------------------------------------------------------------------
-    # 赛程拉取 & 调度预测
+    # 批量预测
     # ------------------------------------------------------------------
 
-    def _daily_schedule_fetch(self):
-        """拉取今日赛程，为每场比赛注册预测任务"""
+    def _daily_batch_predict(self):
+        """拉取今日赛程，并行预测所有尚未预测的比赛"""
         try:
             with self.app.app_context():
                 games = self._get_today_games()
                 if not games:
                     logger.info("今日无 NBA 比赛")
                     return
-                logger.info(f"今日 {len(games)} 场 NBA 比赛")
+
+                # 过滤已预测的
+                pending = []
                 for game in games:
-                    self._schedule_game_prediction(game)
+                    game_key = f"{game['away_abbr']}@{game['home_abbr']}_{game['game_date']}"
+                    if game_key not in self._predicted_games:
+                        pending.append((game, game_key))
+
+                if not pending:
+                    logger.info(f"今日 {len(games)} 场比赛均已预测")
+                    return
+
+                logger.info(f"今日 {len(games)} 场比赛，待预测 {len(pending)} 场，并发={Config.AUTO_PREDICT_MAX_CONCURRENT}")
+
+                # 并行启动所有预测线程，由信号量控制并发
+                threads = []
+                for game, game_key in pending:
+                    self._predicted_games.add(game_key)
+                    t = threading.Thread(
+                        target=self._run_auto_prediction,
+                        args=(game,),
+                        daemon=True,
+                    )
+                    threads.append(t)
+                    t.start()
+
+                # 等待所有线程完成
+                for t in threads:
+                    t.join()
+
+                logger.info(f"今日批量预测完成: {len(pending)} 场")
         except Exception as e:
-            logger.error(f"每日赛程拉取失败: {e}", exc_info=True)
+            logger.error(f"批量预测失败: {e}", exc_info=True)
 
     def _get_today_games(self) -> list:
         """从 CDN schedule 获取今日比赛列表"""
@@ -136,53 +165,6 @@ class AutoPredictionScheduler:
                         'game_status': g.get('gameStatus', 1),
                     })
         return games
-
-    def _schedule_game_prediction(self, game: dict):
-        """为单场比赛注册一次性预测任务"""
-        game_key = f"{game['away_abbr']}@{game['home_abbr']}_{game['game_date']}"
-        if game_key in self._scheduled_games:
-            return
-
-        # 已开始的比赛跳过
-        if game.get('game_status', 1) >= 2:
-            logger.info(f"跳过已开始的比赛: {game_key}")
-            return
-
-        # 计算触发时间 = 开赛 - N 分钟
-        try:
-            game_time = datetime.fromisoformat(game['game_time_utc'].replace('Z', '+00:00'))
-        except (ValueError, AttributeError):
-            logger.warning(f"无法解析比赛时间: {game['game_time_utc']}, 跳过 {game_key}")
-            return
-
-        trigger_time = game_time - timedelta(minutes=Config.AUTO_PREDICT_MINUTES_BEFORE)
-        now_utc = datetime.now(game_time.tzinfo or ZoneInfo('UTC'))
-
-        if trigger_time <= now_utc:
-            # 触发时间已过但比赛未开始 → 立即执行
-            if game_time > now_utc:
-                logger.info(f"触发时间已过但比赛未开始，立即执行: {game_key}")
-                self._scheduled_games.add(game_key)
-                threading.Thread(
-                    target=self._run_auto_prediction,
-                    args=(game,),
-                    daemon=True,
-                ).start()
-            else:
-                logger.info(f"比赛时间已过，跳过: {game_key}")
-            return
-
-        # 注册 DateTrigger 一次性任务
-        self._scheduled_games.add(game_key)
-        self._scheduler.add_job(
-            self._run_auto_prediction,
-            DateTrigger(run_date=trigger_time),
-            args=[game],
-            id=f'auto_pred_{game_key}',
-            replace_existing=True,
-        )
-        trigger_et = trigger_time.astimezone(ET).strftime('%H:%M ET')
-        logger.info(f"已调度: {game_key} → {trigger_et}")
 
     # ------------------------------------------------------------------
     # 执行预测
@@ -513,6 +495,6 @@ class AutoPredictionScheduler:
         ]
         return {
             'running': self._scheduler.running,
-            'scheduled_games': len(self._scheduled_games),
+            'predicted_games': len(self._predicted_games),
             'pending_jobs': pending,
         }
