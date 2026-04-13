@@ -198,16 +198,28 @@ class AutoPredictionScheduler:
         from ..models.matchup import MatchupInput, TeamInfo, MarketOdds
         from ..models.task import TaskManager
         from ..api.prediction import _prediction_worker
+        from ..extensions import db
 
         home_abbr = game['home_abbr']
         away_abbr = game['away_abbr']
         game_date = game['game_date']
         matchup_id = f"auto_{away_abbr}_{home_abbr}_{game_date}"
 
-        # 防重复
+        # 防重复：尝试插入占位记录，利用 DB 唯一约束防竞态
         existing = Prediction.query.filter_by(matchup_id=matchup_id).first()
         if existing:
             logger.info(f"已存在预测 {matchup_id}，跳过")
+            return
+        try:
+            placeholder = Prediction(
+                matchup_id=matchup_id,
+                data={"_placeholder": True},
+            )
+            db.session.add(placeholder)
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            logger.info(f"占位写入冲突 {matchup_id}，跳过")
             return
 
         # 获取系统用户

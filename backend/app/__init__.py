@@ -166,12 +166,22 @@ def create_app(config_class=Config):
         check_and_refresh_on_startup()
         start_monthly_scheduler()
 
-    # 自动预测调度器
+    # 自动预测调度器（用文件锁确保多 worker 只启动一个）
     if should_log_startup and Config.AUTO_PREDICT_ENABLED:
-        from .services.auto_scheduler import AutoPredictionScheduler
-        scheduler = AutoPredictionScheduler(app)
-        scheduler.start()
-        app.auto_scheduler = scheduler
+        import fcntl
+        _lock_path = os.path.join(os.path.dirname(__file__), '../.scheduler.lock')
+        try:
+            _lock_fd = open(_lock_path, 'w')
+            fcntl.flock(_lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            # 拿到锁 → 本 worker 负责调度
+            from .services.auto_scheduler import AutoPredictionScheduler
+            scheduler = AutoPredictionScheduler(app)
+            scheduler.start()
+            app.auto_scheduler = scheduler
+            app._scheduler_lock_fd = _lock_fd  # 持有锁直到进程退出
+        except (IOError, OSError):
+            logger.info("另一个 worker 已持有调度器锁，跳过")
+            _lock_fd.close()
 
     if should_log_startup:
         logger.info("MiroFish Backend 启动完成")
