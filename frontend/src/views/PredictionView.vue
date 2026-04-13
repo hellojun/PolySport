@@ -254,6 +254,7 @@
           </h3>
           <div v-if="showL3" class="card-body">
             <div v-if="l3Data">
+              <template v-if="l3Data.debate_log">
               <div class="debate-stats">
                 {{ t('result.llm_calls') }} {{ l3Data.debate_log.total_llm_calls }}{{ t('result.calls_unit') }} |
                 {{ t('result.duration') }} {{ l3Data.debate_log.total_duration_seconds.toFixed(1) }}{{ t('result.seconds_unit') }}
@@ -274,6 +275,7 @@
                   </div>
                 </div>
               </div>
+              </template>
             </div>
             <div v-else class="loading-text">{{ t('result.loading') }}</div>
           </div>
